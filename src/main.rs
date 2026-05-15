@@ -2,27 +2,40 @@ use std::env;
 use std::process;
 
 const HELP: &str = "\
-db 0.1.0
-
+db - deterministic single-process V1 database CLI
 Usage:
   db --help
   db help
-
-Options:
-  -h, --help    Print this help message.
-
-V1 persistent-db-core is currently bootstrapped as a CLI skeleton. Future gaps will add page storage, SQL execution, indexes, transactions, WAL recovery, crash testing, differential tests, invariant checks, and benchmarks.
+Supported commands:
+  help        Print this help text.
+Reserved future commands:
+  open <path>
+  exec <path> <sql>
+  check <path>
+  bench <path>
+V1 bootstrap scope:
+  This build only defines the CLI contract and smoke baseline.
+  Storage pages, SQL execution, indexes, transactions, WAL, and recovery are not implemented in this slice.
+Non-goals:
+  No network server, multi-process concurrency, or distributed storage.
 ";
 
 fn main() {
     let args: Vec<String> = env::args().skip(1).collect();
 
-    if args.is_empty() || args.iter().any(|arg| arg == "-h" || arg == "--help") || args == ["help"] {
-        print!("{HELP}");
-        return;
+    match args.as_slice() {
+        [arg] if arg == "--help" || arg == "help" => {
+            print!("{HELP}");
+        }
+        [token, ..] => {
+            eprintln!("error: unsupported argument or command: {token}");
+            eprintln!("hint: run 'db --help' for the supported V1 CLI contract.");
+            process::exit(2);
+        }
+        [] => {
+            eprintln!("error: unsupported argument or command: <none>");
+            eprintln!("hint: run 'db --help' for the supported V1 CLI contract.");
+            process::exit(2);
+        }
     }
-
-    eprintln!("db: unsupported arguments: {}", args.join(" "));
-    eprintln!("Run `db --help` for usage.");
-    process::exit(2);
 }

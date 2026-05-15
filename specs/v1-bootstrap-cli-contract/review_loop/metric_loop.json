@@ -1,0 +1,261 @@
+{
+  "max_rounds": 3,
+  "max_repair_attempts": 2,
+  "threshold": 2,
+  "rounds": [
+    {
+      "round": 1,
+      "metrics": {
+        "objective_plan_gap_fit": {
+          "score": 3,
+          "rationale": "Candidate maps to both an objective metric and a current-plan gap.",
+          "evidence": [
+            "metric:metric-v1-cli-contract",
+            "gap:gap-v1-bootstrap-cli-contract"
+          ]
+        },
+        "causal_evidence_strength": {
+          "score": 3,
+          "rationale": "Candidate has concrete evidence for the proposed intervention.",
+          "evidence": [
+            "`ssot/current-objective.md`는 `metric-v1-cli-contract`를 첫 active success metric으로 두고, 모든 later gap이 runnable CLI contract에 의존한다고 명시합니다.",
+            "`ssot/current-plan.md`는 `gap-v1-bootstrap-cli-contract`를 high priority로 두며 next candidate hint를 help output, command dispatch skeleton, smoke tests로 제시합니다.",
+            "`ssot/current-artifact.md`의 `gate-v1-cli-smoke`는 `cargo test`, `cargo run --bin db -- --help`, command dispatch tests, CLI contract docs를 required evidence로 요구합니다.",
+            "Root Progress Projection은 artifact_status가 `open`이고 `gate-v1-cli-smoke`에서 `req-v1-cli-help-smoke`, `req-v1-cli-dispatch-tests`가 open이라고 보고합니다.",
+            "Active Managed Repo Snapshot은 repo가 clean이고 `Cargo.toml`, `Cargo.lock`, `src/main.rs`를 가진 Rust CLI skeleton 상태라고 보고합니다.",
+            "Queue Snapshot은 `[]`이며 Gap Evidence Cache도 verified, queued, active task가 없다고 보고하므로 duplicate 또는 reserved work가 없습니다.",
+            "AGENTS.md",
+            "Cargo.toml",
+            "src/main.rs",
+            "docs/v1_spec.md",
+            "docs/history_archives/history.md",
+            "work_queue/progress.md",
+            "project_manager/tasks/tasks.json",
+            "project_manager/specs/v1-bootstrap-cli-contract/review_loop/design.md",
+            "HELP",
+            "main",
+            "[[bin]] name = \"db\"",
+            "db --help",
+            "db help",
+            "unsupported arguments",
+            "project_manager/tasks/tasks.json: tasks=[]",
+            "canonical project_manager/specs/v1-bootstrap-cli-contract/spec.md 없음",
+            "canonical project_manager/specs/v1-bootstrap-cli-contract/contracts.md 없음"
+          ]
+        },
+        "handoff_verifiability": {
+          "score": 3,
+          "rationale": "Expected delta and acceptance proof are explicit.",
+          "evidence": [
+            "`cargo test`가 성공하고 help 및 unsupported argument dispatch를 검증하는 자동 테스트가 포함됩니다.",
+            "`cargo run --bin db -- --help`가 exit code 0으로 성공하며 출력이 문서화된 command surface와 일치합니다.",
+            "지원하지 않는 argument 또는 subcommand는 deterministic non-zero exit와 명확한 stderr를 반환하고 테스트로 검증됩니다.",
+            "CLI contract 문서는 현재 지원 범위, exit code, future command reservation, non-goal을 설명하며 storage, SQL, WAL 구현을 이번 범위에 포함하지 않습니다.",
+            "변경 범위는 Rust `db` binary contract와 smoke baseline에 한정되고 network service, multi-process behavior, distributed behavior를 추가하지 않습니다."
+          ]
+        }
+      },
+      "low_metrics": [],
+      "constraint_blockers": [],
+      "artifact_mapping": {
+        "source": "inferred_current_plan_gap",
+        "blocker": "",
+        "blocker_reason": "",
+        "resolved_requirement_ids": [
+          "req-v1-cli-help-smoke",
+          "req-v1-cli-dispatch-tests"
+        ],
+        "resolved_gates": [
+          "gate-v1-cli-smoke"
+        ],
+        "explicit": {
+          "requirement_ids": [],
+          "launch_gates": [],
+          "valid_requirement_ids": [],
+          "valid_launch_gates": [],
+          "unknown_requirement_ids": [],
+          "unknown_launch_gates": [],
+          "resolved_requirement_ids": [],
+          "resolved_gates": [],
+          "present": false
+        },
+        "inferred": {
+          "current_plan_gap_id": "gap-v1-bootstrap-cli-contract",
+          "launch_gates": [
+            "gate-v1-cli-smoke"
+          ],
+          "requirement_ids": [
+            "req-v1-cli-help-smoke",
+            "req-v1-cli-dispatch-tests"
+          ],
+          "valid": true
+        },
+        "artifact_contract": {
+          "requirement_ids": [
+            "req-v1-acceptance-docs",
+            "req-v1-benchmark-lower-bounds",
+            "req-v1-cli-dispatch-tests",
+            "req-v1-cli-help-smoke",
+            "req-v1-crash-matrix-output",
+            "req-v1-db-check-proof",
+            "req-v1-differential-property-proof",
+            "req-v1-page-storage-restart",
+            "req-v1-primary-index-proof",
+            "req-v1-record-format-doc",
+            "req-v1-secondary-index-proof",
+            "req-v1-sql-exec-examples",
+            "req-v1-wal-recovery-proof"
+          ],
+          "launch_gates": [
+            "gate-v1-bench-docs-acceptance",
+            "gate-v1-cli-smoke",
+            "gate-v1-crash-testing",
+            "gate-v1-db-check-invariants",
+            "gate-v1-differential-property-tests",
+            "gate-v1-disk-page-storage",
+            "gate-v1-indexes",
+            "gate-v1-sql-schema-exec",
+            "gate-v1-transactions-wal-recovery"
+          ]
+        }
+      },
+      "feedback": [],
+      "repair": {
+        "attempted": false,
+        "changed": false,
+        "changes": [],
+        "summary": "No repair needed."
+      }
+    }
+  ],
+  "final_metrics": {
+    "objective_plan_gap_fit": {
+      "score": 3,
+      "rationale": "Candidate maps to both an objective metric and a current-plan gap.",
+      "evidence": [
+        "metric:metric-v1-cli-contract",
+        "gap:gap-v1-bootstrap-cli-contract"
+      ]
+    },
+    "causal_evidence_strength": {
+      "score": 3,
+      "rationale": "Candidate has concrete evidence for the proposed intervention.",
+      "evidence": [
+        "`ssot/current-objective.md`는 `metric-v1-cli-contract`를 첫 active success metric으로 두고, 모든 later gap이 runnable CLI contract에 의존한다고 명시합니다.",
+        "`ssot/current-plan.md`는 `gap-v1-bootstrap-cli-contract`를 high priority로 두며 next candidate hint를 help output, command dispatch skeleton, smoke tests로 제시합니다.",
+        "`ssot/current-artifact.md`의 `gate-v1-cli-smoke`는 `cargo test`, `cargo run --bin db -- --help`, command dispatch tests, CLI contract docs를 required evidence로 요구합니다.",
+        "Root Progress Projection은 artifact_status가 `open`이고 `gate-v1-cli-smoke`에서 `req-v1-cli-help-smoke`, `req-v1-cli-dispatch-tests`가 open이라고 보고합니다.",
+        "Active Managed Repo Snapshot은 repo가 clean이고 `Cargo.toml`, `Cargo.lock`, `src/main.rs`를 가진 Rust CLI skeleton 상태라고 보고합니다.",
+        "Queue Snapshot은 `[]`이며 Gap Evidence Cache도 verified, queued, active task가 없다고 보고하므로 duplicate 또는 reserved work가 없습니다.",
+        "AGENTS.md",
+        "Cargo.toml",
+        "src/main.rs",
+        "docs/v1_spec.md",
+        "docs/history_archives/history.md",
+        "work_queue/progress.md",
+        "project_manager/tasks/tasks.json",
+        "project_manager/specs/v1-bootstrap-cli-contract/review_loop/design.md",
+        "HELP",
+        "main",
+        "[[bin]] name = \"db\"",
+        "db --help",
+        "db help",
+        "unsupported arguments",
+        "project_manager/tasks/tasks.json: tasks=[]",
+        "canonical project_manager/specs/v1-bootstrap-cli-contract/spec.md 없음",
+        "canonical project_manager/specs/v1-bootstrap-cli-contract/contracts.md 없음"
+      ]
+    },
+    "handoff_verifiability": {
+      "score": 3,
+      "rationale": "Expected delta and acceptance proof are explicit.",
+      "evidence": [
+        "`cargo test`가 성공하고 help 및 unsupported argument dispatch를 검증하는 자동 테스트가 포함됩니다.",
+        "`cargo run --bin db -- --help`가 exit code 0으로 성공하며 출력이 문서화된 command surface와 일치합니다.",
+        "지원하지 않는 argument 또는 subcommand는 deterministic non-zero exit와 명확한 stderr를 반환하고 테스트로 검증됩니다.",
+        "CLI contract 문서는 현재 지원 범위, exit code, future command reservation, non-goal을 설명하며 storage, SQL, WAL 구현을 이번 범위에 포함하지 않습니다.",
+        "변경 범위는 Rust `db` binary contract와 smoke baseline에 한정되고 network service, multi-process behavior, distributed behavior를 추가하지 않습니다."
+      ]
+    }
+  },
+  "low_metrics": [],
+  "constraint_blockers": [],
+  "artifact_mapping": {
+    "source": "inferred_current_plan_gap",
+    "blocker": "",
+    "blocker_reason": "",
+    "resolved_requirement_ids": [
+      "req-v1-cli-help-smoke",
+      "req-v1-cli-dispatch-tests"
+    ],
+    "resolved_gates": [
+      "gate-v1-cli-smoke"
+    ],
+    "explicit": {
+      "requirement_ids": [],
+      "launch_gates": [],
+      "valid_requirement_ids": [],
+      "valid_launch_gates": [],
+      "unknown_requirement_ids": [],
+      "unknown_launch_gates": [],
+      "resolved_requirement_ids": [],
+      "resolved_gates": [],
+      "present": false
+    },
+    "inferred": {
+      "current_plan_gap_id": "gap-v1-bootstrap-cli-contract",
+      "launch_gates": [
+        "gate-v1-cli-smoke"
+      ],
+      "requirement_ids": [
+        "req-v1-cli-help-smoke",
+        "req-v1-cli-dispatch-tests"
+      ],
+      "valid": true
+    },
+    "artifact_contract": {
+      "requirement_ids": [
+        "req-v1-acceptance-docs",
+        "req-v1-benchmark-lower-bounds",
+        "req-v1-cli-dispatch-tests",
+        "req-v1-cli-help-smoke",
+        "req-v1-crash-matrix-output",
+        "req-v1-db-check-proof",
+        "req-v1-differential-property-proof",
+        "req-v1-page-storage-restart",
+        "req-v1-primary-index-proof",
+        "req-v1-record-format-doc",
+        "req-v1-secondary-index-proof",
+        "req-v1-sql-exec-examples",
+        "req-v1-wal-recovery-proof"
+      ],
+      "launch_gates": [
+        "gate-v1-bench-docs-acceptance",
+        "gate-v1-cli-smoke",
+        "gate-v1-crash-testing",
+        "gate-v1-db-check-invariants",
+        "gate-v1-differential-property-tests",
+        "gate-v1-disk-page-storage",
+        "gate-v1-indexes",
+        "gate-v1-sql-schema-exec",
+        "gate-v1-transactions-wal-recovery"
+      ]
+    }
+  },
+  "repair_attempts": 0,
+  "final_disposition": "ready_for_handoff",
+  "evidence_gap_type": "",
+  "confidence_gap_reason": "",
+  "research_question": "",
+  "hypothesis_lineage": {
+    "objective_metric_id": "metric-v1-cli-contract",
+    "current_plan_gap_id": "gap-v1-bootstrap-cli-contract",
+    "target_boundary": "managed_repo"
+  },
+  "repairability": {
+    "repairable": false,
+    "reason": "already_ready",
+    "allowed_findings": [],
+    "blocked_findings": []
+  }
+}
