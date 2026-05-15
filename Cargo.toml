@@ -1,0 +1,10 @@
+[package]
+name = "persistent-db-core"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "db"
+path = "src/main.rs"
+
+[dependencies]
