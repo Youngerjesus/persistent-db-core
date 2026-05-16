@@ -1,0 +1,44 @@
+# V1 Page File Format
+
+## Page Size And Numbering
+
+V1 page files use fixed 4096-byte pages. Page `0` is the file header page. Data pages start at page `1` and continue in append order. The file length must always be an exact multiple of 4096 bytes.
+
+## File Header Page
+
+All multi-byte integer fields are little-endian.
+
+| Offset | Size | Field |
+| --- | ---: | --- |
+| 0 | 8 | File magic `PDBV1\0\0\0` |
+| 8 | 2 | Format version, currently `1` |
+| 10 | 2 | Page size as `u16`, currently `4096` |
+| 12 | 4 | Page size as `u32`, currently `4096` |
+| 16 | 8 | Total page count, including the file header page |
+| 24 | 4072 | Reserved, zero-filled in new files |
+
+## Data Page Layout
+
+Each data page stores opaque byte records in append order.
+
+| Offset | Size | Field |
+| --- | ---: | --- |
+| 0 | 4 | Data page magic `PDPG` |
+| 4 | 2 | Page format version, currently `1` |
+| 6 | 2 | Data page header size, currently `16` |
+| 8 | 2 | Used byte offset from the start of the page |
+| 10 | 2 | Record count in this page |
+| 12 | 4 | Reserved, zero-filled in new pages |
+| 16 | variable | Record stream |
+
+## Record Encoding
+
+Records are encoded as `u32 little-endian length` followed by exactly that many payload bytes. Payloads are opaque bytes; empty payloads, UTF-8 text, and arbitrary binary bytes are all valid. A single record must fit in one data page after the 16-byte page header and 4-byte length prefix. Overflow pages are not part of V1.
+
+## Validation Errors
+
+Opening or reading a file validates the header and every declared data page. Short files return a truncated-file error. Non-page-aligned files or missing declared pages return a truncated-page error. Invalid file or data page magic returns an invalid-magic error. Unsupported format versions return an unsupported-version error. Record lengths that exceed the page used bytes or page capacity return a corrupt-record-length error. Oversized appends return a record-too-large error.
+
+## Compatibility Note
+
+V1 is pre-launch and does not guarantee backward compatibility for existing user data. After this page and record format is introduced, format changes must not be made implicitly: the documentation and deterministic tests must be updated together with any intentional format change.
