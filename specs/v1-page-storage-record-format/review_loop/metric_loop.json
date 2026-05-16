@@ -1,0 +1,283 @@
+{
+  "max_rounds": 3,
+  "max_repair_attempts": 2,
+  "threshold": 2,
+  "rounds": [
+    {
+      "round": 1,
+      "metrics": {
+        "objective_plan_gap_fit": {
+          "score": 3,
+          "rationale": "Candidate maps to both an objective metric and a current-plan gap.",
+          "evidence": [
+            "metric:metric-v1-durable-storage",
+            "gap:gap-v1-page-storage-record-format"
+          ]
+        },
+        "causal_evidence_strength": {
+          "score": 3,
+          "rationale": "Candidate has concrete evidence for the proposed intervention.",
+          "evidence": [
+            "ssot/current-objective.md: metric-v1-durable-storage는 records가 deterministic on-disk page storage를 통해 restart 뒤에도 살아남아야 한다고 정의합니다.",
+            "ssot/current-plan.md: gap-v1-page-storage-record-format은 high priority이며 page file creation, fixed record encoding, restart read verification을 next candidate hint로 둡니다.",
+            "ssot/current-artifact.md: gate-v1-disk-page-storage는 req-v1-page-storage-restart와 req-v1-record-format-doc을 완료 조건으로 둡니다.",
+            "Root Progress Projection: gate-v1-disk-page-storage status=open, missing_requirement_ids=[req-v1-page-storage-restart, req-v1-record-format-doc].",
+            "Active Managed Repo Snapshot: work_queue/progress.md는 page storage와 record format implementation evidence가 아직 없다고 기록합니다.",
+            "Queue Snapshot: []로 현재 중복 active/reserved task가 없습니다.",
+            "Gap Evidence Cache: verified task는 v1-bootstrap-cli-contract 1개뿐이고 page storage verified evidence는 없습니다.",
+            "autopilot/ssot/current-objective.md",
+            "autopilot/ssot/current-plan.md",
+            "autopilot/ssot/current-artifact.md",
+            "autopilot/project_manager/tasks/tasks.json",
+            "autopilot/project_manager/specs/v1-page-storage-record-format/review_loop/design.md",
+            "persistent-db-core_worktree/main/AGENTS.md",
+            "persistent-db-core_worktree/main/Cargo.toml",
+            "persistent-db-core_worktree/main/src/main.rs",
+            "persistent-db-core_worktree/main/tests/cli_contract.rs",
+            "persistent-db-core_worktree/main/docs/cli_contract.md",
+            "persistent-db-core_worktree/main/docs/v1_spec.md",
+            "persistent-db-core_worktree/main/work_queue/progress.md",
+            "metric-v1-durable-storage",
+            "gap-v1-page-storage-record-format",
+            "gate-v1-disk-page-storage",
+            "req-v1-page-storage-restart",
+            "req-v1-record-format-doc",
+            "HELP",
+            "main",
+            "[[bin]] name = \"db\"",
+            "reserved_future_command_remains_unsupported",
+            "autopilot/project_manager/tasks/tasks.json#task-2026-05-15-16-06-54-v1-bootstrap-cli-contract:SUCCESS",
+            "autopilot/project_manager/tasks/tasks.json: no v1-page-storage-record-format task",
+            "autopilot/project_manager/specs/v1-bootstrap-cli-contract/spec.md",
+            "autopilot/project_manager/specs/v1-bootstrap-cli-contract/contracts.md",
+            "autopilot/project_manager/specs/v1-page-storage-record-format/spec.md: absent",
+            "autopilot/project_manager/specs/v1-page-storage-record-format/contracts.md: absent"
+          ]
+        },
+        "handoff_verifiability": {
+          "score": 3,
+          "rationale": "Expected delta and acceptance proof are explicit.",
+          "evidence": [
+            "고정 크기 page file을 생성하고 record를 deterministic binary encoding으로 append/read할 수 있어야 합니다.",
+            "같은 database path를 닫고 다시 열었을 때 이전에 쓴 records를 동일한 순서와 값으로 읽는 automated restart test가 있어야 합니다.",
+            "file/page/record format 문서가 page size, header 또는 slot layout, record encoding, compatibility note를 명시해야 합니다.",
+            "`cargo test`가 통과해야 합니다.",
+            "`cargo run --bin db -- --help`가 기존 CLI contract를 깨지 않고 성공해야 합니다."
+          ]
+        }
+      },
+      "low_metrics": [],
+      "constraint_blockers": [],
+      "artifact_mapping": {
+        "source": "inferred_current_plan_gap",
+        "blocker": "",
+        "blocker_reason": "",
+        "resolved_requirement_ids": [
+          "req-v1-page-storage-restart",
+          "req-v1-record-format-doc"
+        ],
+        "resolved_gates": [
+          "gate-v1-disk-page-storage"
+        ],
+        "explicit": {
+          "requirement_ids": [],
+          "launch_gates": [],
+          "valid_requirement_ids": [],
+          "valid_launch_gates": [],
+          "unknown_requirement_ids": [],
+          "unknown_launch_gates": [],
+          "resolved_requirement_ids": [],
+          "resolved_gates": [],
+          "present": false
+        },
+        "inferred": {
+          "current_plan_gap_id": "gap-v1-page-storage-record-format",
+          "launch_gates": [
+            "gate-v1-disk-page-storage"
+          ],
+          "requirement_ids": [
+            "req-v1-page-storage-restart",
+            "req-v1-record-format-doc"
+          ],
+          "valid": true
+        },
+        "artifact_contract": {
+          "requirement_ids": [
+            "req-v1-acceptance-docs",
+            "req-v1-benchmark-lower-bounds",
+            "req-v1-cli-dispatch-tests",
+            "req-v1-cli-help-smoke",
+            "req-v1-crash-matrix-output",
+            "req-v1-db-check-proof",
+            "req-v1-differential-property-proof",
+            "req-v1-page-storage-restart",
+            "req-v1-primary-index-proof",
+            "req-v1-record-format-doc",
+            "req-v1-secondary-index-proof",
+            "req-v1-sql-exec-examples",
+            "req-v1-wal-recovery-proof"
+          ],
+          "launch_gates": [
+            "gate-v1-bench-docs-acceptance",
+            "gate-v1-cli-smoke",
+            "gate-v1-crash-testing",
+            "gate-v1-db-check-invariants",
+            "gate-v1-differential-property-tests",
+            "gate-v1-disk-page-storage",
+            "gate-v1-indexes",
+            "gate-v1-sql-schema-exec",
+            "gate-v1-transactions-wal-recovery"
+          ]
+        }
+      },
+      "feedback": [],
+      "repair": {
+        "attempted": false,
+        "changed": false,
+        "changes": [],
+        "summary": "No repair needed."
+      }
+    }
+  ],
+  "final_metrics": {
+    "objective_plan_gap_fit": {
+      "score": 3,
+      "rationale": "Candidate maps to both an objective metric and a current-plan gap.",
+      "evidence": [
+        "metric:metric-v1-durable-storage",
+        "gap:gap-v1-page-storage-record-format"
+      ]
+    },
+    "causal_evidence_strength": {
+      "score": 3,
+      "rationale": "Candidate has concrete evidence for the proposed intervention.",
+      "evidence": [
+        "ssot/current-objective.md: metric-v1-durable-storage는 records가 deterministic on-disk page storage를 통해 restart 뒤에도 살아남아야 한다고 정의합니다.",
+        "ssot/current-plan.md: gap-v1-page-storage-record-format은 high priority이며 page file creation, fixed record encoding, restart read verification을 next candidate hint로 둡니다.",
+        "ssot/current-artifact.md: gate-v1-disk-page-storage는 req-v1-page-storage-restart와 req-v1-record-format-doc을 완료 조건으로 둡니다.",
+        "Root Progress Projection: gate-v1-disk-page-storage status=open, missing_requirement_ids=[req-v1-page-storage-restart, req-v1-record-format-doc].",
+        "Active Managed Repo Snapshot: work_queue/progress.md는 page storage와 record format implementation evidence가 아직 없다고 기록합니다.",
+        "Queue Snapshot: []로 현재 중복 active/reserved task가 없습니다.",
+        "Gap Evidence Cache: verified task는 v1-bootstrap-cli-contract 1개뿐이고 page storage verified evidence는 없습니다.",
+        "autopilot/ssot/current-objective.md",
+        "autopilot/ssot/current-plan.md",
+        "autopilot/ssot/current-artifact.md",
+        "autopilot/project_manager/tasks/tasks.json",
+        "autopilot/project_manager/specs/v1-page-storage-record-format/review_loop/design.md",
+        "persistent-db-core_worktree/main/AGENTS.md",
+        "persistent-db-core_worktree/main/Cargo.toml",
+        "persistent-db-core_worktree/main/src/main.rs",
+        "persistent-db-core_worktree/main/tests/cli_contract.rs",
+        "persistent-db-core_worktree/main/docs/cli_contract.md",
+        "persistent-db-core_worktree/main/docs/v1_spec.md",
+        "persistent-db-core_worktree/main/work_queue/progress.md",
+        "metric-v1-durable-storage",
+        "gap-v1-page-storage-record-format",
+        "gate-v1-disk-page-storage",
+        "req-v1-page-storage-restart",
+        "req-v1-record-format-doc",
+        "HELP",
+        "main",
+        "[[bin]] name = \"db\"",
+        "reserved_future_command_remains_unsupported",
+        "autopilot/project_manager/tasks/tasks.json#task-2026-05-15-16-06-54-v1-bootstrap-cli-contract:SUCCESS",
+        "autopilot/project_manager/tasks/tasks.json: no v1-page-storage-record-format task",
+        "autopilot/project_manager/specs/v1-bootstrap-cli-contract/spec.md",
+        "autopilot/project_manager/specs/v1-bootstrap-cli-contract/contracts.md",
+        "autopilot/project_manager/specs/v1-page-storage-record-format/spec.md: absent",
+        "autopilot/project_manager/specs/v1-page-storage-record-format/contracts.md: absent"
+      ]
+    },
+    "handoff_verifiability": {
+      "score": 3,
+      "rationale": "Expected delta and acceptance proof are explicit.",
+      "evidence": [
+        "고정 크기 page file을 생성하고 record를 deterministic binary encoding으로 append/read할 수 있어야 합니다.",
+        "같은 database path를 닫고 다시 열었을 때 이전에 쓴 records를 동일한 순서와 값으로 읽는 automated restart test가 있어야 합니다.",
+        "file/page/record format 문서가 page size, header 또는 slot layout, record encoding, compatibility note를 명시해야 합니다.",
+        "`cargo test`가 통과해야 합니다.",
+        "`cargo run --bin db -- --help`가 기존 CLI contract를 깨지 않고 성공해야 합니다."
+      ]
+    }
+  },
+  "low_metrics": [],
+  "constraint_blockers": [],
+  "artifact_mapping": {
+    "source": "inferred_current_plan_gap",
+    "blocker": "",
+    "blocker_reason": "",
+    "resolved_requirement_ids": [
+      "req-v1-page-storage-restart",
+      "req-v1-record-format-doc"
+    ],
+    "resolved_gates": [
+      "gate-v1-disk-page-storage"
+    ],
+    "explicit": {
+      "requirement_ids": [],
+      "launch_gates": [],
+      "valid_requirement_ids": [],
+      "valid_launch_gates": [],
+      "unknown_requirement_ids": [],
+      "unknown_launch_gates": [],
+      "resolved_requirement_ids": [],
+      "resolved_gates": [],
+      "present": false
+    },
+    "inferred": {
+      "current_plan_gap_id": "gap-v1-page-storage-record-format",
+      "launch_gates": [
+        "gate-v1-disk-page-storage"
+      ],
+      "requirement_ids": [
+        "req-v1-page-storage-restart",
+        "req-v1-record-format-doc"
+      ],
+      "valid": true
+    },
+    "artifact_contract": {
+      "requirement_ids": [
+        "req-v1-acceptance-docs",
+        "req-v1-benchmark-lower-bounds",
+        "req-v1-cli-dispatch-tests",
+        "req-v1-cli-help-smoke",
+        "req-v1-crash-matrix-output",
+        "req-v1-db-check-proof",
+        "req-v1-differential-property-proof",
+        "req-v1-page-storage-restart",
+        "req-v1-primary-index-proof",
+        "req-v1-record-format-doc",
+        "req-v1-secondary-index-proof",
+        "req-v1-sql-exec-examples",
+        "req-v1-wal-recovery-proof"
+      ],
+      "launch_gates": [
+        "gate-v1-bench-docs-acceptance",
+        "gate-v1-cli-smoke",
+        "gate-v1-crash-testing",
+        "gate-v1-db-check-invariants",
+        "gate-v1-differential-property-tests",
+        "gate-v1-disk-page-storage",
+        "gate-v1-indexes",
+        "gate-v1-sql-schema-exec",
+        "gate-v1-transactions-wal-recovery"
+      ]
+    }
+  },
+  "repair_attempts": 0,
+  "final_disposition": "ready_for_handoff",
+  "evidence_gap_type": "",
+  "confidence_gap_reason": "",
+  "research_question": "",
+  "hypothesis_lineage": {
+    "objective_metric_id": "metric-v1-durable-storage",
+    "current_plan_gap_id": "gap-v1-page-storage-record-format",
+    "target_boundary": "managed_repo"
+  },
+  "repairability": {
+    "repairable": false,
+    "reason": "already_ready",
+    "allowed_findings": [],
+    "blocked_findings": []
+  }
+}
