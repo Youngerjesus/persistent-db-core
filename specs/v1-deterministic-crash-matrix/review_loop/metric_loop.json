@@ -1,0 +1,269 @@
+{
+  "max_rounds": 3,
+  "max_repair_attempts": 2,
+  "threshold": 2,
+  "rounds": [
+    {
+      "round": 1,
+      "metrics": {
+        "objective_plan_gap_fit": {
+          "score": 3,
+          "rationale": "Candidate maps to both an objective metric and a current-plan gap.",
+          "evidence": [
+            "metric:metric-v1-recovery-correctness",
+            "gap:gap-v1-deterministic-crash-matrix"
+          ]
+        },
+        "causal_evidence_strength": {
+          "score": 3,
+          "rationale": "Candidate has concrete evidence for the proposed intervention.",
+          "evidence": [
+            "Root Progress Projection: `artifact_status=open`; `gate-v1-crash-testing` status=`open`, missing_requirement_ids=[`req-v1-crash-matrix-output`].",
+            "Current Artifact: `req-v1-crash-matrix-output`은 write, commit, recovery boundaries를 덮는 deterministic crash matrix output을 요구합니다.",
+            "Current Plan: `gap-v1-deterministic-crash-matrix`는 high priority이며 WAL 이후 crash injection around write/WAL/replay boundaries를 next candidate로 제시합니다.",
+            "Root Progress Projection: `gate-v1-transactions-wal-recovery`는 status=`projected_complete`, satisfied_requirements=[`req-v1-wal-recovery-proof`]로 crash matrix 선행 조건이 충족됐습니다.",
+            "Managed repo progress: 현재 상태는 SQL, primary index, WAL replay evidence가 있고 다음 작은 handoff 후보로 deterministic crash matrix 또는 validation gaps를 제시합니다.",
+            "Queue Snapshot: []이며 Active Managed Repo Snapshot의 git_status는 clean입니다.",
+            "persistent-db-core_worktree/main/src/storage.rs",
+            "persistent-db-core_worktree/main/tests/wal_recovery.rs",
+            "persistent-db-core_worktree/main/docs/file_format.md",
+            "persistent-db-core_worktree/main/docs/v1_spec.md",
+            "persistent-db-core_worktree/main/work_queue/progress.md",
+            "persistent-db-core_worktree/main/scripts/verify",
+            "autopilot/ssot/current-plan.md",
+            "autopilot/ssot/current-artifact.md",
+            "autopilot/project_manager/tasks/tasks.json",
+            "PageStore::open",
+            "PageStore::append_record",
+            "replay_wal",
+            "append_wal_frame",
+            "committed_wal_replay_survives_reopen_via_cli",
+            "rolled_back_wal_frame_is_not_replayed_as_uncommitted_change",
+            "incomplete_wal_entry_is_not_replayed_without_public_rollback_cli",
+            "committed_frame_after_incomplete_tail_cleanup_remains_replayable",
+            "task-2026-05-17-23-45-17-v1-transaction-wal-recovery",
+            "task-2026-05-18-00-55-20-v1-wal-recovery-current-sha-proof",
+            "project_manager/specs/v1-transaction-wal-recovery/spec.md",
+            "project_manager/specs/v1-transaction-wal-recovery/contracts.md",
+            "project_manager/specs/v1-wal-recovery-current-sha-proof/spec.md",
+            "project_manager/specs/v1-wal-recovery-current-sha-proof/contracts.md"
+          ]
+        },
+        "handoff_verifiability": {
+          "score": 3,
+          "rationale": "Expected delta and acceptance proof are explicit.",
+          "evidence": [
+            "`cargo test --test crash_matrix` 또는 동등한 deterministic crash matrix command가 write, WAL append, commit marker, incomplete-tail, recovery replay 경계를 검증합니다.",
+            "각 matrix case는 고정 seed 또는 명명된 fixture를 사용하고, 실패 시 어떤 crash point가 깨졌는지 식별 가능한 output을 남깁니다.",
+            "commit 완료 전 중단된 row는 reopen 후 보이지 않고, commit 완료 row는 reopen 후 deterministic `SELECT` output으로 확인됩니다.",
+            "WAL sidecar replay는 반복 실행해도 idempotent하며 기존 CLI contract와 저장 포맷 호환성을 깨지 않습니다.",
+            "baseline `./scripts/verify`가 통과하고, task contract에는 crash matrix command와 expected evidence path가 명시됩니다."
+          ]
+        }
+      },
+      "low_metrics": [],
+      "constraint_blockers": [],
+      "artifact_mapping": {
+        "source": "inferred_current_plan_gap",
+        "blocker": "",
+        "blocker_reason": "",
+        "resolved_requirement_ids": [
+          "req-v1-crash-matrix-output"
+        ],
+        "resolved_gates": [
+          "gate-v1-crash-testing"
+        ],
+        "explicit": {
+          "requirement_ids": [],
+          "launch_gates": [],
+          "valid_requirement_ids": [],
+          "valid_launch_gates": [],
+          "unknown_requirement_ids": [],
+          "unknown_launch_gates": [],
+          "resolved_requirement_ids": [],
+          "resolved_gates": [],
+          "present": false
+        },
+        "inferred": {
+          "current_plan_gap_id": "gap-v1-deterministic-crash-matrix",
+          "launch_gates": [
+            "gate-v1-crash-testing"
+          ],
+          "requirement_ids": [
+            "req-v1-crash-matrix-output"
+          ],
+          "valid": true
+        },
+        "artifact_contract": {
+          "requirement_ids": [
+            "req-v1-acceptance-docs",
+            "req-v1-benchmark-lower-bounds",
+            "req-v1-cli-dispatch-tests",
+            "req-v1-cli-help-smoke",
+            "req-v1-crash-matrix-output",
+            "req-v1-db-check-proof",
+            "req-v1-differential-property-proof",
+            "req-v1-page-storage-restart",
+            "req-v1-primary-index-proof",
+            "req-v1-record-format-doc",
+            "req-v1-secondary-index-proof",
+            "req-v1-sql-exec-examples",
+            "req-v1-wal-recovery-proof"
+          ],
+          "launch_gates": [
+            "gate-v1-bench-docs-acceptance",
+            "gate-v1-cli-smoke",
+            "gate-v1-crash-testing",
+            "gate-v1-db-check-invariants",
+            "gate-v1-differential-property-tests",
+            "gate-v1-disk-page-storage",
+            "gate-v1-indexes",
+            "gate-v1-sql-schema-exec",
+            "gate-v1-transactions-wal-recovery"
+          ]
+        }
+      },
+      "feedback": [],
+      "repair": {
+        "attempted": false,
+        "changed": false,
+        "changes": [],
+        "summary": "No repair needed."
+      }
+    }
+  ],
+  "final_metrics": {
+    "objective_plan_gap_fit": {
+      "score": 3,
+      "rationale": "Candidate maps to both an objective metric and a current-plan gap.",
+      "evidence": [
+        "metric:metric-v1-recovery-correctness",
+        "gap:gap-v1-deterministic-crash-matrix"
+      ]
+    },
+    "causal_evidence_strength": {
+      "score": 3,
+      "rationale": "Candidate has concrete evidence for the proposed intervention.",
+      "evidence": [
+        "Root Progress Projection: `artifact_status=open`; `gate-v1-crash-testing` status=`open`, missing_requirement_ids=[`req-v1-crash-matrix-output`].",
+        "Current Artifact: `req-v1-crash-matrix-output`은 write, commit, recovery boundaries를 덮는 deterministic crash matrix output을 요구합니다.",
+        "Current Plan: `gap-v1-deterministic-crash-matrix`는 high priority이며 WAL 이후 crash injection around write/WAL/replay boundaries를 next candidate로 제시합니다.",
+        "Root Progress Projection: `gate-v1-transactions-wal-recovery`는 status=`projected_complete`, satisfied_requirements=[`req-v1-wal-recovery-proof`]로 crash matrix 선행 조건이 충족됐습니다.",
+        "Managed repo progress: 현재 상태는 SQL, primary index, WAL replay evidence가 있고 다음 작은 handoff 후보로 deterministic crash matrix 또는 validation gaps를 제시합니다.",
+        "Queue Snapshot: []이며 Active Managed Repo Snapshot의 git_status는 clean입니다.",
+        "persistent-db-core_worktree/main/src/storage.rs",
+        "persistent-db-core_worktree/main/tests/wal_recovery.rs",
+        "persistent-db-core_worktree/main/docs/file_format.md",
+        "persistent-db-core_worktree/main/docs/v1_spec.md",
+        "persistent-db-core_worktree/main/work_queue/progress.md",
+        "persistent-db-core_worktree/main/scripts/verify",
+        "autopilot/ssot/current-plan.md",
+        "autopilot/ssot/current-artifact.md",
+        "autopilot/project_manager/tasks/tasks.json",
+        "PageStore::open",
+        "PageStore::append_record",
+        "replay_wal",
+        "append_wal_frame",
+        "committed_wal_replay_survives_reopen_via_cli",
+        "rolled_back_wal_frame_is_not_replayed_as_uncommitted_change",
+        "incomplete_wal_entry_is_not_replayed_without_public_rollback_cli",
+        "committed_frame_after_incomplete_tail_cleanup_remains_replayable",
+        "task-2026-05-17-23-45-17-v1-transaction-wal-recovery",
+        "task-2026-05-18-00-55-20-v1-wal-recovery-current-sha-proof",
+        "project_manager/specs/v1-transaction-wal-recovery/spec.md",
+        "project_manager/specs/v1-transaction-wal-recovery/contracts.md",
+        "project_manager/specs/v1-wal-recovery-current-sha-proof/spec.md",
+        "project_manager/specs/v1-wal-recovery-current-sha-proof/contracts.md"
+      ]
+    },
+    "handoff_verifiability": {
+      "score": 3,
+      "rationale": "Expected delta and acceptance proof are explicit.",
+      "evidence": [
+        "`cargo test --test crash_matrix` 또는 동등한 deterministic crash matrix command가 write, WAL append, commit marker, incomplete-tail, recovery replay 경계를 검증합니다.",
+        "각 matrix case는 고정 seed 또는 명명된 fixture를 사용하고, 실패 시 어떤 crash point가 깨졌는지 식별 가능한 output을 남깁니다.",
+        "commit 완료 전 중단된 row는 reopen 후 보이지 않고, commit 완료 row는 reopen 후 deterministic `SELECT` output으로 확인됩니다.",
+        "WAL sidecar replay는 반복 실행해도 idempotent하며 기존 CLI contract와 저장 포맷 호환성을 깨지 않습니다.",
+        "baseline `./scripts/verify`가 통과하고, task contract에는 crash matrix command와 expected evidence path가 명시됩니다."
+      ]
+    }
+  },
+  "low_metrics": [],
+  "constraint_blockers": [],
+  "artifact_mapping": {
+    "source": "inferred_current_plan_gap",
+    "blocker": "",
+    "blocker_reason": "",
+    "resolved_requirement_ids": [
+      "req-v1-crash-matrix-output"
+    ],
+    "resolved_gates": [
+      "gate-v1-crash-testing"
+    ],
+    "explicit": {
+      "requirement_ids": [],
+      "launch_gates": [],
+      "valid_requirement_ids": [],
+      "valid_launch_gates": [],
+      "unknown_requirement_ids": [],
+      "unknown_launch_gates": [],
+      "resolved_requirement_ids": [],
+      "resolved_gates": [],
+      "present": false
+    },
+    "inferred": {
+      "current_plan_gap_id": "gap-v1-deterministic-crash-matrix",
+      "launch_gates": [
+        "gate-v1-crash-testing"
+      ],
+      "requirement_ids": [
+        "req-v1-crash-matrix-output"
+      ],
+      "valid": true
+    },
+    "artifact_contract": {
+      "requirement_ids": [
+        "req-v1-acceptance-docs",
+        "req-v1-benchmark-lower-bounds",
+        "req-v1-cli-dispatch-tests",
+        "req-v1-cli-help-smoke",
+        "req-v1-crash-matrix-output",
+        "req-v1-db-check-proof",
+        "req-v1-differential-property-proof",
+        "req-v1-page-storage-restart",
+        "req-v1-primary-index-proof",
+        "req-v1-record-format-doc",
+        "req-v1-secondary-index-proof",
+        "req-v1-sql-exec-examples",
+        "req-v1-wal-recovery-proof"
+      ],
+      "launch_gates": [
+        "gate-v1-bench-docs-acceptance",
+        "gate-v1-cli-smoke",
+        "gate-v1-crash-testing",
+        "gate-v1-db-check-invariants",
+        "gate-v1-differential-property-tests",
+        "gate-v1-disk-page-storage",
+        "gate-v1-indexes",
+        "gate-v1-sql-schema-exec",
+        "gate-v1-transactions-wal-recovery"
+      ]
+    }
+  },
+  "repair_attempts": 0,
+  "final_disposition": "ready_for_handoff",
+  "evidence_gap_type": "",
+  "confidence_gap_reason": "",
+  "research_question": "",
+  "hypothesis_lineage": {
+    "objective_metric_id": "metric-v1-recovery-correctness",
+    "current_plan_gap_id": "gap-v1-deterministic-crash-matrix",
+    "target_boundary": "managed_repo"
+  },
+  "repairability": {
+    "repairable": false,
+    "reason": "already_ready",
+    "allowed_findings": [],
+    "blocked_findings": []
+  }
+}
