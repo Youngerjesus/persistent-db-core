@@ -5,3 +5,7 @@
 - Created `persistent-db-core` as a V1 managed repo for CAO Autopilot.
 - Initial product boundary is a Rust CLI binary named `db`.
 - No V1 implementation gaps have verified completion evidence yet.
+
+## 2026-05-17
+
+- Added the minimal SQL schema/execute milestone: `db exec <path> <sql>` now supports the documented `CREATE TABLE`, `INSERT`, and `SELECT *` path with deterministic persistence and error-contract coverage.
