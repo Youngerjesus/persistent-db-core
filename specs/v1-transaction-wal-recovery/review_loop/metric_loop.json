@@ -1,0 +1,291 @@
+{
+  "max_rounds": 3,
+  "max_repair_attempts": 2,
+  "threshold": 2,
+  "rounds": [
+    {
+      "round": 1,
+      "metrics": {
+        "objective_plan_gap_fit": {
+          "score": 3,
+          "rationale": "Candidate maps to both an objective metric and a current-plan gap.",
+          "evidence": [
+            "metric:metric-v1-recovery-correctness",
+            "gap:gap-v1-transaction-wal-recovery"
+          ]
+        },
+        "causal_evidence_strength": {
+          "score": 3,
+          "rationale": "Candidate has concrete evidence for the proposed intervention.",
+          "evidence": [
+            "Root Progress Projection: `gate-v1-transactions-wal-recovery` 상태가 `open`이고 missing requirement가 `req-v1-wal-recovery-proof`입니다.",
+            "Current Plan: `gap-v1-transaction-wal-recovery`는 high priority이며 next candidate hint가 commit/rollback WAL replay입니다.",
+            "Current Artifact: `gate-v1-transactions-wal-recovery`는 WAL replay tests, commit/rollback tests, recovery transcript, file-state evidence를 요구합니다.",
+            "Managed repo progress: SQL schema/execute path와 primary-key indexed lookup/ordered scan proof가 이미 존재해 recovery layer를 검증할 실행 baseline이 있습니다.",
+            "Queue Snapshot: 현재 active 또는 reserved task가 없습니다.",
+            "persistent-db-core_worktree/main/src/sql.rs",
+            "persistent-db-core_worktree/main/src/storage.rs",
+            "persistent-db-core_worktree/main/src/main.rs",
+            "persistent-db-core_worktree/main/tests/sql_exec.rs",
+            "persistent-db-core_worktree/main/tests/primary_index.rs",
+            "persistent-db-core_worktree/main/docs/cli_contract.md",
+            "persistent-db-core_worktree/main/docs/sql_subset.md",
+            "persistent-db-core_worktree/main/docs/file_format.md",
+            "persistent-db-core_worktree/main/work_queue/progress.md",
+            "autopilot/ssot/current-plan.md",
+            "autopilot/ssot/current-artifact.md",
+            "autopilot/project_manager/tasks/tasks.json",
+            "sql::execute",
+            "Database::from_records",
+            "Statement::CreateTable",
+            "Statement::Insert",
+            "Statement::SelectAll",
+            "Statement::SelectPrimaryKey",
+            "PageStore::open",
+            "PageStore::append_record",
+            "PageStore::read_records",
+            "PrimaryIndex",
+            "autopilot/project_manager/tasks/tasks.json#task-2026-05-15-16-06-54-v1-bootstrap-cli-contract:SUCCESS",
+            "autopilot/project_manager/tasks/tasks.json#task-2026-05-16-13-58-47-v1-page-storage-record-format:SUCCESS",
+            "autopilot/project_manager/tasks/tasks.json#task-2026-05-17-19-38-21-v1-sql-parser-schema-exec:SUCCESS",
+            "autopilot/project_manager/tasks/tasks.json#task-2026-05-17-22-43-31-v1-primary-btree-index:SUCCESS",
+            "autopilot/project_manager/specs/v1-bootstrap-cli-contract/spec.md",
+            "autopilot/project_manager/specs/v1-bootstrap-cli-contract/contracts.md",
+            "autopilot/project_manager/specs/v1-page-storage-record-format/spec.md",
+            "autopilot/project_manager/specs/v1-page-storage-record-format/contracts.md",
+            "autopilot/project_manager/specs/v1-sql-parser-schema-exec/spec.md",
+            "autopilot/project_manager/specs/v1-sql-parser-schema-exec/contracts.md",
+            "autopilot/project_manager/specs/v1-primary-btree-index/spec.md",
+            "autopilot/project_manager/specs/v1-primary-btree-index/contracts.md"
+          ]
+        },
+        "handoff_verifiability": {
+          "score": 3,
+          "rationale": "Expected delta and acceptance proof are explicit.",
+          "evidence": [
+            "`cargo test`가 통과합니다.",
+            "`./scripts/verify`가 통과합니다.",
+            "committed insert 또는 작은 mutation set이 재시작 후 WAL replay를 통해 조회됩니다.",
+            "rollback된 mutation 또는 incomplete WAL entry가 재시작 후 조회 결과에 나타나지 않습니다.",
+            "WAL 파일명, record layout 또는 replay 규칙이 `docs/` 문서에 compatibility note와 함께 기록됩니다.",
+            "테스트는 deterministic fixture 또는 temp database를 사용하고 expected row output과 exit behavior를 명시합니다."
+          ]
+        }
+      },
+      "low_metrics": [],
+      "constraint_blockers": [],
+      "artifact_mapping": {
+        "source": "inferred_current_plan_gap",
+        "blocker": "",
+        "blocker_reason": "",
+        "resolved_requirement_ids": [
+          "req-v1-wal-recovery-proof"
+        ],
+        "resolved_gates": [
+          "gate-v1-transactions-wal-recovery"
+        ],
+        "explicit": {
+          "requirement_ids": [],
+          "launch_gates": [],
+          "valid_requirement_ids": [],
+          "valid_launch_gates": [],
+          "unknown_requirement_ids": [],
+          "unknown_launch_gates": [],
+          "resolved_requirement_ids": [],
+          "resolved_gates": [],
+          "present": false
+        },
+        "inferred": {
+          "current_plan_gap_id": "gap-v1-transaction-wal-recovery",
+          "launch_gates": [
+            "gate-v1-transactions-wal-recovery"
+          ],
+          "requirement_ids": [
+            "req-v1-wal-recovery-proof"
+          ],
+          "valid": true
+        },
+        "artifact_contract": {
+          "requirement_ids": [
+            "req-v1-acceptance-docs",
+            "req-v1-benchmark-lower-bounds",
+            "req-v1-cli-dispatch-tests",
+            "req-v1-cli-help-smoke",
+            "req-v1-crash-matrix-output",
+            "req-v1-db-check-proof",
+            "req-v1-differential-property-proof",
+            "req-v1-page-storage-restart",
+            "req-v1-primary-index-proof",
+            "req-v1-record-format-doc",
+            "req-v1-secondary-index-proof",
+            "req-v1-sql-exec-examples",
+            "req-v1-wal-recovery-proof"
+          ],
+          "launch_gates": [
+            "gate-v1-bench-docs-acceptance",
+            "gate-v1-cli-smoke",
+            "gate-v1-crash-testing",
+            "gate-v1-db-check-invariants",
+            "gate-v1-differential-property-tests",
+            "gate-v1-disk-page-storage",
+            "gate-v1-indexes",
+            "gate-v1-sql-schema-exec",
+            "gate-v1-transactions-wal-recovery"
+          ]
+        }
+      },
+      "feedback": [],
+      "repair": {
+        "attempted": false,
+        "changed": false,
+        "changes": [],
+        "summary": "No repair needed."
+      }
+    }
+  ],
+  "final_metrics": {
+    "objective_plan_gap_fit": {
+      "score": 3,
+      "rationale": "Candidate maps to both an objective metric and a current-plan gap.",
+      "evidence": [
+        "metric:metric-v1-recovery-correctness",
+        "gap:gap-v1-transaction-wal-recovery"
+      ]
+    },
+    "causal_evidence_strength": {
+      "score": 3,
+      "rationale": "Candidate has concrete evidence for the proposed intervention.",
+      "evidence": [
+        "Root Progress Projection: `gate-v1-transactions-wal-recovery` 상태가 `open`이고 missing requirement가 `req-v1-wal-recovery-proof`입니다.",
+        "Current Plan: `gap-v1-transaction-wal-recovery`는 high priority이며 next candidate hint가 commit/rollback WAL replay입니다.",
+        "Current Artifact: `gate-v1-transactions-wal-recovery`는 WAL replay tests, commit/rollback tests, recovery transcript, file-state evidence를 요구합니다.",
+        "Managed repo progress: SQL schema/execute path와 primary-key indexed lookup/ordered scan proof가 이미 존재해 recovery layer를 검증할 실행 baseline이 있습니다.",
+        "Queue Snapshot: 현재 active 또는 reserved task가 없습니다.",
+        "persistent-db-core_worktree/main/src/sql.rs",
+        "persistent-db-core_worktree/main/src/storage.rs",
+        "persistent-db-core_worktree/main/src/main.rs",
+        "persistent-db-core_worktree/main/tests/sql_exec.rs",
+        "persistent-db-core_worktree/main/tests/primary_index.rs",
+        "persistent-db-core_worktree/main/docs/cli_contract.md",
+        "persistent-db-core_worktree/main/docs/sql_subset.md",
+        "persistent-db-core_worktree/main/docs/file_format.md",
+        "persistent-db-core_worktree/main/work_queue/progress.md",
+        "autopilot/ssot/current-plan.md",
+        "autopilot/ssot/current-artifact.md",
+        "autopilot/project_manager/tasks/tasks.json",
+        "sql::execute",
+        "Database::from_records",
+        "Statement::CreateTable",
+        "Statement::Insert",
+        "Statement::SelectAll",
+        "Statement::SelectPrimaryKey",
+        "PageStore::open",
+        "PageStore::append_record",
+        "PageStore::read_records",
+        "PrimaryIndex",
+        "autopilot/project_manager/tasks/tasks.json#task-2026-05-15-16-06-54-v1-bootstrap-cli-contract:SUCCESS",
+        "autopilot/project_manager/tasks/tasks.json#task-2026-05-16-13-58-47-v1-page-storage-record-format:SUCCESS",
+        "autopilot/project_manager/tasks/tasks.json#task-2026-05-17-19-38-21-v1-sql-parser-schema-exec:SUCCESS",
+        "autopilot/project_manager/tasks/tasks.json#task-2026-05-17-22-43-31-v1-primary-btree-index:SUCCESS",
+        "autopilot/project_manager/specs/v1-bootstrap-cli-contract/spec.md",
+        "autopilot/project_manager/specs/v1-bootstrap-cli-contract/contracts.md",
+        "autopilot/project_manager/specs/v1-page-storage-record-format/spec.md",
+        "autopilot/project_manager/specs/v1-page-storage-record-format/contracts.md",
+        "autopilot/project_manager/specs/v1-sql-parser-schema-exec/spec.md",
+        "autopilot/project_manager/specs/v1-sql-parser-schema-exec/contracts.md",
+        "autopilot/project_manager/specs/v1-primary-btree-index/spec.md",
+        "autopilot/project_manager/specs/v1-primary-btree-index/contracts.md"
+      ]
+    },
+    "handoff_verifiability": {
+      "score": 3,
+      "rationale": "Expected delta and acceptance proof are explicit.",
+      "evidence": [
+        "`cargo test`가 통과합니다.",
+        "`./scripts/verify`가 통과합니다.",
+        "committed insert 또는 작은 mutation set이 재시작 후 WAL replay를 통해 조회됩니다.",
+        "rollback된 mutation 또는 incomplete WAL entry가 재시작 후 조회 결과에 나타나지 않습니다.",
+        "WAL 파일명, record layout 또는 replay 규칙이 `docs/` 문서에 compatibility note와 함께 기록됩니다.",
+        "테스트는 deterministic fixture 또는 temp database를 사용하고 expected row output과 exit behavior를 명시합니다."
+      ]
+    }
+  },
+  "low_metrics": [],
+  "constraint_blockers": [],
+  "artifact_mapping": {
+    "source": "inferred_current_plan_gap",
+    "blocker": "",
+    "blocker_reason": "",
+    "resolved_requirement_ids": [
+      "req-v1-wal-recovery-proof"
+    ],
+    "resolved_gates": [
+      "gate-v1-transactions-wal-recovery"
+    ],
+    "explicit": {
+      "requirement_ids": [],
+      "launch_gates": [],
+      "valid_requirement_ids": [],
+      "valid_launch_gates": [],
+      "unknown_requirement_ids": [],
+      "unknown_launch_gates": [],
+      "resolved_requirement_ids": [],
+      "resolved_gates": [],
+      "present": false
+    },
+    "inferred": {
+      "current_plan_gap_id": "gap-v1-transaction-wal-recovery",
+      "launch_gates": [
+        "gate-v1-transactions-wal-recovery"
+      ],
+      "requirement_ids": [
+        "req-v1-wal-recovery-proof"
+      ],
+      "valid": true
+    },
+    "artifact_contract": {
+      "requirement_ids": [
+        "req-v1-acceptance-docs",
+        "req-v1-benchmark-lower-bounds",
+        "req-v1-cli-dispatch-tests",
+        "req-v1-cli-help-smoke",
+        "req-v1-crash-matrix-output",
+        "req-v1-db-check-proof",
+        "req-v1-differential-property-proof",
+        "req-v1-page-storage-restart",
+        "req-v1-primary-index-proof",
+        "req-v1-record-format-doc",
+        "req-v1-secondary-index-proof",
+        "req-v1-sql-exec-examples",
+        "req-v1-wal-recovery-proof"
+      ],
+      "launch_gates": [
+        "gate-v1-bench-docs-acceptance",
+        "gate-v1-cli-smoke",
+        "gate-v1-crash-testing",
+        "gate-v1-db-check-invariants",
+        "gate-v1-differential-property-tests",
+        "gate-v1-disk-page-storage",
+        "gate-v1-indexes",
+        "gate-v1-sql-schema-exec",
+        "gate-v1-transactions-wal-recovery"
+      ]
+    }
+  },
+  "repair_attempts": 0,
+  "final_disposition": "ready_for_handoff",
+  "evidence_gap_type": "",
+  "confidence_gap_reason": "",
+  "research_question": "",
+  "hypothesis_lineage": {
+    "objective_metric_id": "metric-v1-recovery-correctness",
+    "current_plan_gap_id": "gap-v1-transaction-wal-recovery",
+    "target_boundary": "managed_repo"
+  },
+  "repairability": {
+    "repairable": false,
+    "reason": "already_ready",
+    "allowed_findings": [],
+    "blocked_findings": []
+  }
+}

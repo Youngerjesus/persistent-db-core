@@ -73,6 +73,11 @@ lookup and prints only the matching row, or only the header when the key is
 missing. Multiple `SELECT` statements repeat the header with no blank line,
 separator, or count line.
 
+Successful `CREATE TABLE` and `INSERT` mutations are durable across later
+`db exec` process starts for the same database path. WAL sidecar details are
+documented in `docs/file_format.md`; they do not add public CLI commands or
+change successful stdout, stderr, or exit codes.
+
 The supported SQL subset is documented in `docs/sql_subset.md`.
 
 Unsupported SQL exits `2`, writes empty stdout, and uses this stderr:
@@ -154,7 +159,7 @@ Invoking any reserved command currently follows the unsupported input behavior.
 ## Non-Goals
 
 This slice does not implement projection, general `WHERE`, `ORDER BY`, `JOIN`,
-`UPDATE`, `DELETE`, transactions, WAL, recovery, secondary indexes, networking,
+`UPDATE`, `DELETE`, public transaction commands, secondary indexes, networking,
 multi-process concurrency, or distributed storage. Primary indexes are rebuilt
 from durable SQL row records on open; there is no separate persisted index
 metadata, so existing row-only SQL files remain compatible and missing index
