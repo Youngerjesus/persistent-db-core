@@ -112,3 +112,17 @@ unsupported version, checksum mismatch, or unknown non-rollback state are
 treated as storage corruption and fail open with the existing storage error
 surface. Complete WAL frames are retained after replay; V1 does not checkpoint
 or truncate complete frames.
+
+## `db check` Format Validation
+
+`db check <path>` validates the existing page file and optional
+`<database-path>.wal` sidecar without creating, replaying, truncating,
+checkpointing, or repairing either file. The check covers page-record
+readability, SQL catalog/row consistency, primary-key rebuildability from
+durable row records, and WAL replay consistency for the documented sidecar
+format.
+
+Because primary indexes are rebuilt in memory from row records and are not
+persisted as a separate file or record family, `db check` reports duplicate
+durable primary-key values as a `primary index` invariant failure. Missing
+primary-index metadata is not a V1 file-format failure mode.

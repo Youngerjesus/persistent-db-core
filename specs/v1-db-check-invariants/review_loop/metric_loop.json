@@ -1,0 +1,315 @@
+{
+  "max_rounds": 3,
+  "max_repair_attempts": 2,
+  "threshold": 2,
+  "rounds": [
+    {
+      "round": 1,
+      "metrics": {
+        "objective_plan_gap_fit": {
+          "score": 3,
+          "rationale": "Candidate maps to both an objective metric and a current-plan gap.",
+          "evidence": [
+            "metric:metric-v1-acceptance-evidence",
+            "gap:gap-v1-db-check-invariants"
+          ]
+        },
+        "causal_evidence_strength": {
+          "score": 3,
+          "rationale": "Candidate has concrete evidence for the proposed intervention.",
+          "evidence": [
+            "Root Progress Projection: artifact_status=open이며 open_requirement_ids에 `req-v1-db-check-proof`가 포함되어 있습니다.",
+            "Root Progress Projection: `gate-v1-db-check-invariants`는 status=open, missing_requirement_ids=`req-v1-db-check-proof`입니다.",
+            "Current Plan: `gap-v1-db-check-invariants`는 `metric-v1-acceptance-evidence`와 `gate-v1-db-check-invariants`에 연결되며 `db check` command와 valid/corrupted fixture cases를 요구합니다.",
+            "Current Artifact: `req-v1-db-check-proof`는 `db check`가 valid fixture를 수락하고 corrupted fixture를 명확한 exit code로 거부해야 한다고 정의합니다.",
+            "Managed repo progress: storage, SQL execution, primary index, WAL recovery, crash matrix는 이미 verification_ready 또는 완료 evidence가 있어 invariant checker의 기반이 존재합니다.",
+            "Queue Snapshot: 활성 또는 예약 task가 없어 동일 feature 중복이 보이지 않습니다.",
+            "src/main.rs",
+            "src/lib.rs",
+            "src/storage.rs",
+            "src/sql.rs",
+            "src/index.rs",
+            "tests/cli_contract.rs",
+            "tests/page_storage.rs",
+            "tests/primary_index.rs",
+            "tests/wal_recovery.rs",
+            "tests/crash_matrix.rs",
+            "tests/fixtures/crash_matrix/README.md",
+            "docs/cli_contract.md",
+            "docs/file_format.md",
+            "docs/v1_spec.md",
+            "autopilot/ssot/current-plan.md",
+            "autopilot/ssot/current-artifact.md",
+            "autopilot/project_manager/tasks/tasks.json",
+            "HELP",
+            "main",
+            "exit_with_sql_error",
+            "sql::execute",
+            "PageStore",
+            "PageStore::open",
+            "PageStore::read_records",
+            "replay_wal",
+            "PrimaryIndex",
+            "Database::from_records",
+            "validate_catalog_record_invariants",
+            "reserved_future_command_remains_unsupported",
+            "corrupt_record_length_returns_error",
+            "autopilot/project_manager/tasks/tasks.json: task-2026-05-15-16-06-54-v1-bootstrap-cli-contract SUCCESS, gap-v1-bootstrap-cli-contract",
+            "autopilot/project_manager/tasks/tasks.json: task-2026-05-16-13-58-47-v1-page-storage-record-format SUCCESS, gap-v1-page-storage-record-format",
+            "autopilot/project_manager/tasks/tasks.json: task-2026-05-17-19-38-21-v1-sql-parser-schema-exec SUCCESS, gap-v1-sql-parser-schema-exec",
+            "autopilot/project_manager/tasks/tasks.json: task-2026-05-17-22-43-31-v1-primary-btree-index SUCCESS, gap-v1-primary-btree-index",
+            "autopilot/project_manager/tasks/tasks.json: task-2026-05-17-23-45-17-v1-transaction-wal-recovery SUCCESS, gap-v1-transaction-wal-recovery",
+            "autopilot/project_manager/tasks/tasks.json: task-2026-05-18-00-55-20-v1-wal-recovery-current-sha-proof SUCCESS, gap-v1-transaction-wal-recovery",
+            "autopilot/project_manager/tasks/tasks.json: task-2026-05-18-02-23-10-v1-deterministic-crash-matrix SUCCESS, gap-v1-deterministic-crash-matrix",
+            "autopilot/project_manager/tasks/tasks.json: gap-v1-db-check-invariants 항목 없음",
+            "autopilot/project_manager/specs/v1-bootstrap-cli-contract",
+            "autopilot/project_manager/specs/v1-page-storage-record-format",
+            "autopilot/project_manager/specs/v1-sql-parser-schema-exec",
+            "autopilot/project_manager/specs/v1-primary-btree-index",
+            "autopilot/project_manager/specs/v1-transaction-wal-recovery",
+            "autopilot/project_manager/specs/v1-wal-recovery-current-sha-proof",
+            "autopilot/project_manager/specs/v1-deterministic-crash-matrix",
+            "autopilot/project_manager/specs: v1-db-check-invariants 디렉터리 없음"
+          ]
+        },
+        "handoff_verifiability": {
+          "score": 3,
+          "rationale": "Expected delta and acceptance proof are explicit.",
+          "evidence": [
+            "`db check <path>`가 문서화된 CLI surface에 추가되고 정상 데이터베이스에서 exit code 0으로 성공합니다.",
+            "손상된 page/storage fixture 또는 WAL/index 불일치 fixture 중 최소 하나를 deterministic하게 만들고 `db check`가 비영 exit code와 안정적인 오류 메시지로 실패합니다.",
+            "자동화 테스트가 valid fixture, corrupted fixture, 존재하지 않는 경로 또는 열 수 없는 파일 경로를 포함해 exit code와 stdout/stderr 계약을 검증합니다.",
+            "`docs/cli_contract.md` 또는 관련 durable docs가 `db check` 사용법, 성공/실패 출력, compatibility note를 갱신합니다.",
+            "검증 명령은 `scripts/verify`와 focused check 테스트를 포함합니다."
+          ]
+        }
+      },
+      "low_metrics": [],
+      "constraint_blockers": [],
+      "artifact_mapping": {
+        "source": "inferred_current_plan_gap",
+        "blocker": "",
+        "blocker_reason": "",
+        "resolved_requirement_ids": [
+          "req-v1-db-check-proof"
+        ],
+        "resolved_gates": [
+          "gate-v1-db-check-invariants"
+        ],
+        "explicit": {
+          "requirement_ids": [],
+          "launch_gates": [],
+          "valid_requirement_ids": [],
+          "valid_launch_gates": [],
+          "unknown_requirement_ids": [],
+          "unknown_launch_gates": [],
+          "resolved_requirement_ids": [],
+          "resolved_gates": [],
+          "present": false
+        },
+        "inferred": {
+          "current_plan_gap_id": "gap-v1-db-check-invariants",
+          "launch_gates": [
+            "gate-v1-db-check-invariants"
+          ],
+          "requirement_ids": [
+            "req-v1-db-check-proof"
+          ],
+          "valid": true
+        },
+        "artifact_contract": {
+          "requirement_ids": [
+            "req-v1-acceptance-docs",
+            "req-v1-benchmark-lower-bounds",
+            "req-v1-cli-dispatch-tests",
+            "req-v1-cli-help-smoke",
+            "req-v1-crash-matrix-output",
+            "req-v1-db-check-proof",
+            "req-v1-differential-property-proof",
+            "req-v1-page-storage-restart",
+            "req-v1-primary-index-proof",
+            "req-v1-record-format-doc",
+            "req-v1-secondary-index-proof",
+            "req-v1-sql-exec-examples",
+            "req-v1-wal-recovery-proof"
+          ],
+          "launch_gates": [
+            "gate-v1-bench-docs-acceptance",
+            "gate-v1-cli-smoke",
+            "gate-v1-crash-testing",
+            "gate-v1-db-check-invariants",
+            "gate-v1-differential-property-tests",
+            "gate-v1-disk-page-storage",
+            "gate-v1-indexes",
+            "gate-v1-sql-schema-exec",
+            "gate-v1-transactions-wal-recovery"
+          ]
+        }
+      },
+      "feedback": [],
+      "repair": {
+        "attempted": false,
+        "changed": false,
+        "changes": [],
+        "summary": "No repair needed."
+      }
+    }
+  ],
+  "final_metrics": {
+    "objective_plan_gap_fit": {
+      "score": 3,
+      "rationale": "Candidate maps to both an objective metric and a current-plan gap.",
+      "evidence": [
+        "metric:metric-v1-acceptance-evidence",
+        "gap:gap-v1-db-check-invariants"
+      ]
+    },
+    "causal_evidence_strength": {
+      "score": 3,
+      "rationale": "Candidate has concrete evidence for the proposed intervention.",
+      "evidence": [
+        "Root Progress Projection: artifact_status=open이며 open_requirement_ids에 `req-v1-db-check-proof`가 포함되어 있습니다.",
+        "Root Progress Projection: `gate-v1-db-check-invariants`는 status=open, missing_requirement_ids=`req-v1-db-check-proof`입니다.",
+        "Current Plan: `gap-v1-db-check-invariants`는 `metric-v1-acceptance-evidence`와 `gate-v1-db-check-invariants`에 연결되며 `db check` command와 valid/corrupted fixture cases를 요구합니다.",
+        "Current Artifact: `req-v1-db-check-proof`는 `db check`가 valid fixture를 수락하고 corrupted fixture를 명확한 exit code로 거부해야 한다고 정의합니다.",
+        "Managed repo progress: storage, SQL execution, primary index, WAL recovery, crash matrix는 이미 verification_ready 또는 완료 evidence가 있어 invariant checker의 기반이 존재합니다.",
+        "Queue Snapshot: 활성 또는 예약 task가 없어 동일 feature 중복이 보이지 않습니다.",
+        "src/main.rs",
+        "src/lib.rs",
+        "src/storage.rs",
+        "src/sql.rs",
+        "src/index.rs",
+        "tests/cli_contract.rs",
+        "tests/page_storage.rs",
+        "tests/primary_index.rs",
+        "tests/wal_recovery.rs",
+        "tests/crash_matrix.rs",
+        "tests/fixtures/crash_matrix/README.md",
+        "docs/cli_contract.md",
+        "docs/file_format.md",
+        "docs/v1_spec.md",
+        "autopilot/ssot/current-plan.md",
+        "autopilot/ssot/current-artifact.md",
+        "autopilot/project_manager/tasks/tasks.json",
+        "HELP",
+        "main",
+        "exit_with_sql_error",
+        "sql::execute",
+        "PageStore",
+        "PageStore::open",
+        "PageStore::read_records",
+        "replay_wal",
+        "PrimaryIndex",
+        "Database::from_records",
+        "validate_catalog_record_invariants",
+        "reserved_future_command_remains_unsupported",
+        "corrupt_record_length_returns_error",
+        "autopilot/project_manager/tasks/tasks.json: task-2026-05-15-16-06-54-v1-bootstrap-cli-contract SUCCESS, gap-v1-bootstrap-cli-contract",
+        "autopilot/project_manager/tasks/tasks.json: task-2026-05-16-13-58-47-v1-page-storage-record-format SUCCESS, gap-v1-page-storage-record-format",
+        "autopilot/project_manager/tasks/tasks.json: task-2026-05-17-19-38-21-v1-sql-parser-schema-exec SUCCESS, gap-v1-sql-parser-schema-exec",
+        "autopilot/project_manager/tasks/tasks.json: task-2026-05-17-22-43-31-v1-primary-btree-index SUCCESS, gap-v1-primary-btree-index",
+        "autopilot/project_manager/tasks/tasks.json: task-2026-05-17-23-45-17-v1-transaction-wal-recovery SUCCESS, gap-v1-transaction-wal-recovery",
+        "autopilot/project_manager/tasks/tasks.json: task-2026-05-18-00-55-20-v1-wal-recovery-current-sha-proof SUCCESS, gap-v1-transaction-wal-recovery",
+        "autopilot/project_manager/tasks/tasks.json: task-2026-05-18-02-23-10-v1-deterministic-crash-matrix SUCCESS, gap-v1-deterministic-crash-matrix",
+        "autopilot/project_manager/tasks/tasks.json: gap-v1-db-check-invariants 항목 없음",
+        "autopilot/project_manager/specs/v1-bootstrap-cli-contract",
+        "autopilot/project_manager/specs/v1-page-storage-record-format",
+        "autopilot/project_manager/specs/v1-sql-parser-schema-exec",
+        "autopilot/project_manager/specs/v1-primary-btree-index",
+        "autopilot/project_manager/specs/v1-transaction-wal-recovery",
+        "autopilot/project_manager/specs/v1-wal-recovery-current-sha-proof",
+        "autopilot/project_manager/specs/v1-deterministic-crash-matrix",
+        "autopilot/project_manager/specs: v1-db-check-invariants 디렉터리 없음"
+      ]
+    },
+    "handoff_verifiability": {
+      "score": 3,
+      "rationale": "Expected delta and acceptance proof are explicit.",
+      "evidence": [
+        "`db check <path>`가 문서화된 CLI surface에 추가되고 정상 데이터베이스에서 exit code 0으로 성공합니다.",
+        "손상된 page/storage fixture 또는 WAL/index 불일치 fixture 중 최소 하나를 deterministic하게 만들고 `db check`가 비영 exit code와 안정적인 오류 메시지로 실패합니다.",
+        "자동화 테스트가 valid fixture, corrupted fixture, 존재하지 않는 경로 또는 열 수 없는 파일 경로를 포함해 exit code와 stdout/stderr 계약을 검증합니다.",
+        "`docs/cli_contract.md` 또는 관련 durable docs가 `db check` 사용법, 성공/실패 출력, compatibility note를 갱신합니다.",
+        "검증 명령은 `scripts/verify`와 focused check 테스트를 포함합니다."
+      ]
+    }
+  },
+  "low_metrics": [],
+  "constraint_blockers": [],
+  "artifact_mapping": {
+    "source": "inferred_current_plan_gap",
+    "blocker": "",
+    "blocker_reason": "",
+    "resolved_requirement_ids": [
+      "req-v1-db-check-proof"
+    ],
+    "resolved_gates": [
+      "gate-v1-db-check-invariants"
+    ],
+    "explicit": {
+      "requirement_ids": [],
+      "launch_gates": [],
+      "valid_requirement_ids": [],
+      "valid_launch_gates": [],
+      "unknown_requirement_ids": [],
+      "unknown_launch_gates": [],
+      "resolved_requirement_ids": [],
+      "resolved_gates": [],
+      "present": false
+    },
+    "inferred": {
+      "current_plan_gap_id": "gap-v1-db-check-invariants",
+      "launch_gates": [
+        "gate-v1-db-check-invariants"
+      ],
+      "requirement_ids": [
+        "req-v1-db-check-proof"
+      ],
+      "valid": true
+    },
+    "artifact_contract": {
+      "requirement_ids": [
+        "req-v1-acceptance-docs",
+        "req-v1-benchmark-lower-bounds",
+        "req-v1-cli-dispatch-tests",
+        "req-v1-cli-help-smoke",
+        "req-v1-crash-matrix-output",
+        "req-v1-db-check-proof",
+        "req-v1-differential-property-proof",
+        "req-v1-page-storage-restart",
+        "req-v1-primary-index-proof",
+        "req-v1-record-format-doc",
+        "req-v1-secondary-index-proof",
+        "req-v1-sql-exec-examples",
+        "req-v1-wal-recovery-proof"
+      ],
+      "launch_gates": [
+        "gate-v1-bench-docs-acceptance",
+        "gate-v1-cli-smoke",
+        "gate-v1-crash-testing",
+        "gate-v1-db-check-invariants",
+        "gate-v1-differential-property-tests",
+        "gate-v1-disk-page-storage",
+        "gate-v1-indexes",
+        "gate-v1-sql-schema-exec",
+        "gate-v1-transactions-wal-recovery"
+      ]
+    }
+  },
+  "repair_attempts": 0,
+  "final_disposition": "ready_for_handoff",
+  "evidence_gap_type": "",
+  "confidence_gap_reason": "",
+  "research_question": "",
+  "hypothesis_lineage": {
+    "objective_metric_id": "metric-v1-acceptance-evidence",
+    "current_plan_gap_id": "gap-v1-db-check-invariants",
+    "target_boundary": "managed_repo"
+  },
+  "repairability": {
+    "repairable": false,
+    "reason": "already_ready",
+    "allowed_findings": [],
+    "blocked_findings": []
+  }
+}

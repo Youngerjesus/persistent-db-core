@@ -2,7 +2,7 @@
 
 ## Current State
 
-`persistent-db-core` now has the V1 CLI smoke contract, durable page storage, the minimal SQL schema/execute path, primary-key indexed lookup/ordered scan proof, current-SHA transaction WAL replay evidence for `db exec`, and deterministic crash matrix coverage for WAL recovery boundaries. The next smallest implementation handoff should target secondary indexes, differential/property testing, or validation gaps on top of the SQL execution and recovery baseline.
+`persistent-db-core` now has the V1 CLI smoke contract, durable page storage, the minimal SQL schema/execute path, primary-key indexed lookup/ordered scan proof, current-SHA transaction WAL replay evidence for `db exec`, deterministic crash matrix coverage for WAL recovery boundaries, and `db check` invariant validation for existing database files. The next smallest implementation handoff should target secondary indexes, differential/property testing, or benchmark/acceptance docs on top of the SQL execution, recovery, and check baselines.
 
 ## Gap Snapshot
 
@@ -16,11 +16,12 @@
 | gap-v1-transaction-wal-recovery | verification_ready | Current-SHA WAL sidecar replay proof covers committed mutation survival, rolled-back/uncommitted frame absence, incomplete-tail exclusion, and retained sidecar state after reopen. |
 | gap-v1-deterministic-crash-matrix | verification_ready | Deterministic crash matrix covers pre-WAL append, partial WAL frame, uncommitted frame, committed replay idempotence, interrupted recovery retry, and corrupt tail cleanup evidence. |
 | gap-v1-differential-property-tests | missing_evidence | No SQLite differential/property test harness yet. |
-| gap-v1-db-check-invariants | missing_evidence | No `db check` invariant command yet. |
+| gap-v1-db-check-invariants | verification_ready | `db check <path>` validates existing page records, SQL catalog/row invariants, primary-key rebuildability, WAL sidecar ordering, missing paths, and directory-path open/read errors. |
 | gap-v1-bench-docs-acceptance | missing_evidence | No benchmark lower-bound evidence or V1 acceptance docs yet. |
 
 ## Recent Entries
 
+- 2026-05-18: Added `db check <path>` invariant validation with exact success/failure CLI contracts, deterministic corrupted fixtures for storage, catalog/record, primary-index, and WAL replay consistency failures, plus focused `cargo test --test db_check` coverage.
 - 2026-05-18: Added deterministic WAL crash matrix evidence for six recovery boundaries, including partial/corrupt tails, uncommitted frame exclusion, committed replay idempotence, and interrupted recovery retry with `scripts/verify_crash_matrix`.
 - 2026-05-18: Reverified WAL recovery at current SHA with focused WAL tests, baseline `scripts/verify`, CLI reopen smoke, retained WAL sidecar byte evidence, and explicit mapping to `req-v1-wal-recovery-proof`.
 - 2026-05-18: Added minimal transaction WAL recovery evidence: committed `db exec` mutations survive reopen, incomplete trailing WAL entries are excluded, retained WAL replay is idempotent, and the WAL sidecar format is documented.

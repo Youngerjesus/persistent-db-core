@@ -250,6 +250,54 @@ pub fn execute(path: impl AsRef<Path>, sql: &str) -> Result<String, SqlError> {
     Ok(stdout)
 }
 
+pub fn validate_records_for_check(records: Vec<Vec<u8>>) -> Result<(), &'static str> {
+    let mut database = Database::default();
+    for record in records {
+        match decode_record(&record).map_err(|_| "storage record readability")? {
+            LogicalRecord::Catalog { table, columns } => {
+                let primary_key_column = validate_catalog_record_invariants(&table, &columns)
+                    .map_err(|_| "catalog/record invariant")?;
+                if database.find_table(&table).is_some() {
+                    return Err("catalog/record invariant");
+                }
+                database.tables.push(Table {
+                    name: table,
+                    columns,
+                    rows: Vec::new(),
+                    primary_key_column,
+                    primary_index: PrimaryIndex::new(),
+                });
+            }
+            LogicalRecord::Row { table, values } => {
+                let Some(existing) = database.find_table_mut(&table) else {
+                    return Err("catalog/record invariant");
+                };
+                if existing.columns.len() != values.len() {
+                    return Err("catalog/record invariant");
+                }
+                for (column, value) in existing.columns.iter().zip(values.iter()) {
+                    if column.column_type != value.column_type() {
+                        return Err("catalog/record invariant");
+                    }
+                    validate_loaded_value(value).map_err(|_| "catalog/record invariant")?;
+                }
+                if let Some(primary_key_column) = existing.primary_key_column {
+                    let Value::Int(key) = values[primary_key_column] else {
+                        return Err("catalog/record invariant");
+                    };
+                    existing
+                        .primary_index
+                        .insert(key, existing.rows.len())
+                        .map_err(|_| "primary index")?;
+                }
+                existing.rows.push(values);
+            }
+        }
+    }
+
+    Ok(())
+}
+
 fn initialize_empty_sql_file(path: &Path) -> Result<(), SqlError> {
     match fs::metadata(path) {
         Ok(metadata) if metadata.len() == 0 => {

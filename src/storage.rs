@@ -43,6 +43,12 @@ pub struct PageStore {
     path: PathBuf,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckStorageSnapshot {
+    pub records: Vec<Vec<u8>>,
+    pub record_count: u64,
+}
+
 impl PageStore {
     pub fn open(path: impl AsRef<Path>) -> Result<Self, StorageError> {
         let path = path.as_ref().to_path_buf();
@@ -89,6 +95,106 @@ impl PageStore {
 
         Ok(records)
     }
+}
+
+pub fn read_records_for_check(
+    path: impl AsRef<Path>,
+) -> Result<CheckStorageSnapshot, StorageError> {
+    let path = path.as_ref();
+    validate_file(path)?;
+
+    let mut file = OpenOptions::new().read(true).open(path)?;
+    let page_count = read_page_count(&mut file)?;
+    let mut records = Vec::new();
+
+    for page_index in 1..page_count {
+        let page = read_page(&mut file, page_index)?;
+        read_data_page_records(&page, &mut records)?;
+    }
+
+    let record_count = u64::try_from(records.len()).map_err(|_| StorageError::Io)?;
+    Ok(CheckStorageSnapshot {
+        records,
+        record_count,
+    })
+}
+
+pub fn validate_wal_for_check(
+    path: impl AsRef<Path>,
+    durable_record_count: u64,
+) -> Result<(), StorageError> {
+    let wal_path = wal_path(path.as_ref());
+    if !wal_path.exists() {
+        return Ok(());
+    }
+
+    let bytes = std::fs::read(&wal_path)?;
+    let mut offset = 0usize;
+    let mut virtual_record_count = durable_record_count;
+    while offset < bytes.len() {
+        let remaining = bytes.len() - offset;
+        if remaining < WAL_HEADER_LEN {
+            return Ok(());
+        }
+
+        let header = &bytes[offset..offset + WAL_HEADER_LEN];
+        if &header[0..8] != WAL_MAGIC {
+            return Err(StorageError::InvalidMagic);
+        }
+
+        let version = u16::from_le_bytes([header[8], header[9]]);
+        if version != WAL_VERSION {
+            return Err(StorageError::UnsupportedVersion);
+        }
+
+        let record_count_before = u64::from_le_bytes([
+            header[18], header[19], header[20], header[21], header[22], header[23], header[24],
+            header[25],
+        ]);
+        let state = header[26];
+        let payload_kind = header[27];
+        let payload_len =
+            u32::from_le_bytes([header[28], header[29], header[30], header[31]]) as usize;
+        let frame_len = WAL_HEADER_LEN
+            .checked_add(payload_len)
+            .ok_or(StorageError::CorruptRecordLength)?;
+        if remaining < frame_len {
+            return Ok(());
+        }
+
+        let frame = &bytes[offset..offset + frame_len];
+        let expected_checksum =
+            u32::from_le_bytes([header[32], header[33], header[34], header[35]]);
+        if expected_checksum != wal_checksum(frame) {
+            return Err(StorageError::CorruptRecordLength);
+        }
+
+        if state == WAL_STATE_COMMITTED && payload_kind == WAL_PAYLOAD_KIND_PAGE_APPEND {
+            match virtual_record_count.cmp(&record_count_before) {
+                std::cmp::Ordering::Equal => {
+                    validate_wal_page_append_payload(&frame[WAL_HEADER_LEN..])?;
+                    virtual_record_count = virtual_record_count
+                        .checked_add(1)
+                        .ok_or(StorageError::Io)?;
+                }
+                std::cmp::Ordering::Less => return Err(StorageError::CorruptRecordLength),
+                std::cmp::Ordering::Greater => {}
+            }
+        } else if state != WAL_STATE_ROLLED_BACK {
+            return Err(StorageError::InvalidMagic);
+        }
+
+        offset += frame_len;
+    }
+
+    Ok(())
+}
+
+fn validate_wal_page_append_payload(payload: &[u8]) -> Result<(), StorageError> {
+    if payload.len() > max_record_payload_len() {
+        return Err(StorageError::RecordTooLarge);
+    }
+    Ok(())
 }
 
 fn append_record_to_file(path: &Path, payload: &[u8]) -> Result<(), StorageError> {
