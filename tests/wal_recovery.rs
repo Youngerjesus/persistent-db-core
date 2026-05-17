@@ -7,6 +7,7 @@ const SQL_RECORD_PREFIX: &[u8; 8] = b"PDBSQL1\0";
 const WAL_MAGIC: &[u8; 8] = b"PDBWAL1\0";
 const WAL_VERSION: u16 = 1;
 const WAL_STATE_COMMITTED: u8 = 0x01;
+const WAL_STATE_ROLLED_BACK: u8 = 0x02;
 const WAL_PAYLOAD_KIND_PAGE_APPEND: u8 = 0x01;
 const WAL_HEADER_LEN: usize = 36;
 
@@ -99,13 +100,39 @@ fn write_string_u16(record: &mut Vec<u8>, value: &str) {
 }
 
 fn committed_wal_frame(frame_id: u64, record_count_before: u64, payload: &[u8]) -> Vec<u8> {
+    wal_frame(
+        frame_id,
+        record_count_before,
+        WAL_STATE_COMMITTED,
+        WAL_PAYLOAD_KIND_PAGE_APPEND,
+        payload,
+    )
+}
+
+fn rolled_back_wal_frame(frame_id: u64, record_count_before: u64, payload: &[u8]) -> Vec<u8> {
+    wal_frame(
+        frame_id,
+        record_count_before,
+        WAL_STATE_ROLLED_BACK,
+        WAL_PAYLOAD_KIND_PAGE_APPEND,
+        payload,
+    )
+}
+
+fn wal_frame(
+    frame_id: u64,
+    record_count_before: u64,
+    state: u8,
+    payload_kind: u8,
+    payload: &[u8],
+) -> Vec<u8> {
     let mut frame = Vec::with_capacity(WAL_HEADER_LEN + payload.len());
     frame.extend_from_slice(WAL_MAGIC);
     frame.extend_from_slice(&WAL_VERSION.to_le_bytes());
     frame.extend_from_slice(&frame_id.to_le_bytes());
     frame.extend_from_slice(&record_count_before.to_le_bytes());
-    frame.push(WAL_STATE_COMMITTED);
-    frame.push(WAL_PAYLOAD_KIND_PAGE_APPEND);
+    frame.push(state);
+    frame.push(payload_kind);
     frame.extend_from_slice(&(payload.len() as u32).to_le_bytes());
     frame.extend_from_slice(&0u32.to_le_bytes());
     frame.extend_from_slice(payload);
@@ -149,6 +176,27 @@ fn committed_wal_replay_survives_reopen_via_cli() {
         "id|name\n1|ada\n2|bea\n",
         "",
     );
+
+    cleanup(&path);
+}
+
+#[test]
+fn rolled_back_wal_frame_is_not_replayed_as_uncommitted_change() {
+    let path = temp_db_path("rolled_back_wal_frame_is_not_replayed_as_uncommitted_change");
+
+    assert_exec(&path, "CREATE TABLE users (id INT, name TEXT);", 0, "", "");
+
+    let committed = committed_wal_frame(1, 1, &row_record("users", &[(b'I', "1"), (b'T', "ada")]));
+    let rolled_back_ghost =
+        rolled_back_wal_frame(2, 2, &row_record("users", &[(b'I', "9"), (b'T', "ghost")]));
+
+    let sidecar = wal_path(&path);
+    let mut wal_bytes = committed;
+    wal_bytes.extend_from_slice(&rolled_back_ghost);
+    fs::write(&sidecar, wal_bytes).expect("WAL fixture should be written");
+
+    assert_exec(&path, "SELECT * FROM users;", 0, "id|name\n1|ada\n", "");
+    assert_exec(&path, "SELECT * FROM users;", 0, "id|name\n1|ada\n", "");
 
     cleanup(&path);
 }

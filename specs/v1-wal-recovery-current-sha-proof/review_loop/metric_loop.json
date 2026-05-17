@@ -1,0 +1,283 @@
+{
+  "max_rounds": 3,
+  "max_repair_attempts": 2,
+  "threshold": 2,
+  "rounds": [
+    {
+      "round": 1,
+      "metrics": {
+        "objective_plan_gap_fit": {
+          "score": 3,
+          "rationale": "Candidate maps to both an objective metric and a current-plan gap.",
+          "evidence": [
+            "metric:metric-v1-recovery-correctness",
+            "gap:gap-v1-transaction-wal-recovery"
+          ]
+        },
+        "causal_evidence_strength": {
+          "score": 3,
+          "rationale": "Candidate has concrete evidence for the proposed intervention.",
+          "evidence": [
+            "Root Progress Projection: artifact_status는 `open`이고 `gate-v1-transactions-wal-recovery`는 `missing satisfied requirement rows` 때문에 `open`입니다.",
+            "Root Progress Projection: `req-v1-wal-recovery-proof`는 WAL replay가 committed changes survival과 uncommitted absence를 증명해야 하지만 현재 `open`입니다.",
+            "Root Progress Projection: `gap-v1-transaction-wal-recovery`는 prior manifest repo SHA `754958b37fd01f796b9d4f7522a2062b6e65abc5`와 현재 repo SHA `33b480cac6cf9d505a86eda4c149a4471454f11d` 불일치로 `stale_needs_recheck`입니다.",
+            "Current Plan: `gap-v1-transaction-wal-recovery`는 high priority이며 `metric-v1-recovery-correctness`와 `gate-v1-transactions-wal-recovery`에 연결됩니다.",
+            "Current Artifact: `req-v1-wal-recovery-proof`는 recover 후 committed changes survival과 uncommitted changes absence를 요구합니다.",
+            "Active Managed Repo Snapshot: queue는 비어 있고 git_status는 clean이며, 2026-05-18 history/progress는 minimal WAL recovery milestone이 추가되었다고 보고합니다.",
+            "Root Progress Projection: CLI, disk storage, SQL, index gates는 `projected_complete`라 오늘 후보 범위에서 제외됩니다.",
+            "src/storage.rs",
+            "tests/wal_recovery.rs",
+            "docs/file_format.md",
+            "docs/cli_contract.md",
+            "specs/v1-transaction-wal-recovery/spec.md",
+            "specs/v1-transaction-wal-recovery/contracts.md",
+            "specs/v1-transaction-wal-recovery/qa_mapping.md",
+            "specs/v1-transaction-wal-recovery/impl_review.md",
+            "specs/v1-transaction-wal-recovery/code_review.md",
+            "specs/v1-transaction-wal-recovery/final_review.md",
+            "specs/v1-transaction-wal-recovery/review_loop/metric_loop_evidence.md",
+            "work_queue/progress.md",
+            "autopilot/ssot/current-artifact.md",
+            "autopilot/project_manager/tasks/tasks.json",
+            "PageStore::open",
+            "PageStore::append_record",
+            "replay_wal",
+            "append_wal_frame",
+            "next_wal_frame_id",
+            "wal_checksum",
+            "wal_path",
+            "committed_wal_replay_survives_reopen_via_cli",
+            "incomplete_wal_entry_is_not_replayed_without_public_rollback_cli",
+            "committed_frame_after_incomplete_tail_cleanup_remains_replayable",
+            "committed_wal_frame_ahead_of_page_store_fails_deterministically",
+            "autopilot/project_manager/tasks/tasks.json#task-2026-05-17-23-45-17-v1-transaction-wal-recovery:SUCCESS",
+            "autopilot/project_manager/tasks/tasks.json#artifact_gate:gate-v1-transactions-wal-recovery",
+            "autopilot/project_manager/tasks/tasks.json#artifact_requirement_ids:req-v1-wal-recovery-proof",
+            "autopilot/project_manager/tasks/tasks.json#repo_after_sha:754958b37fd01f796b9d4f7522a2062b6e65abc5"
+          ]
+        },
+        "handoff_verifiability": {
+          "score": 3,
+          "rationale": "Expected delta and acceptance proof are explicit.",
+          "evidence": [
+            "`cargo test --test wal_recovery`가 현재 managed repo SHA에서 통과하고, committed mutation이 reopen/replay 뒤 살아남는 케이스를 검증합니다.",
+            "동일 테스트 또는 별도 deterministic fixture가 incomplete trailing WAL entry 또는 uncommitted change가 복구 후 결과 rows에 나타나지 않음을 검증합니다.",
+            "`./scripts/verify`가 통과해 fmt, clippy, full test suite, `db --help` smoke를 함께 보장합니다.",
+            "CLI smoke transcript가 temp DB에서 create/insert 후 reopen select의 deterministic stdout과 WAL sidecar/replay 상태를 증명합니다.",
+            "최종 evidence가 `gap-v1-transaction-wal-recovery`, `gate-v1-transactions-wal-recovery`, `req-v1-wal-recovery-proof`에 명시적으로 매핑됩니다."
+          ]
+        }
+      },
+      "low_metrics": [],
+      "constraint_blockers": [],
+      "artifact_mapping": {
+        "source": "inferred_current_plan_gap",
+        "blocker": "",
+        "blocker_reason": "",
+        "resolved_requirement_ids": [
+          "req-v1-wal-recovery-proof"
+        ],
+        "resolved_gates": [
+          "gate-v1-transactions-wal-recovery"
+        ],
+        "explicit": {
+          "requirement_ids": [],
+          "launch_gates": [],
+          "valid_requirement_ids": [],
+          "valid_launch_gates": [],
+          "unknown_requirement_ids": [],
+          "unknown_launch_gates": [],
+          "resolved_requirement_ids": [],
+          "resolved_gates": [],
+          "present": false
+        },
+        "inferred": {
+          "current_plan_gap_id": "gap-v1-transaction-wal-recovery",
+          "launch_gates": [
+            "gate-v1-transactions-wal-recovery"
+          ],
+          "requirement_ids": [
+            "req-v1-wal-recovery-proof"
+          ],
+          "valid": true
+        },
+        "artifact_contract": {
+          "requirement_ids": [
+            "req-v1-acceptance-docs",
+            "req-v1-benchmark-lower-bounds",
+            "req-v1-cli-dispatch-tests",
+            "req-v1-cli-help-smoke",
+            "req-v1-crash-matrix-output",
+            "req-v1-db-check-proof",
+            "req-v1-differential-property-proof",
+            "req-v1-page-storage-restart",
+            "req-v1-primary-index-proof",
+            "req-v1-record-format-doc",
+            "req-v1-secondary-index-proof",
+            "req-v1-sql-exec-examples",
+            "req-v1-wal-recovery-proof"
+          ],
+          "launch_gates": [
+            "gate-v1-bench-docs-acceptance",
+            "gate-v1-cli-smoke",
+            "gate-v1-crash-testing",
+            "gate-v1-db-check-invariants",
+            "gate-v1-differential-property-tests",
+            "gate-v1-disk-page-storage",
+            "gate-v1-indexes",
+            "gate-v1-sql-schema-exec",
+            "gate-v1-transactions-wal-recovery"
+          ]
+        }
+      },
+      "feedback": [],
+      "repair": {
+        "attempted": false,
+        "changed": false,
+        "changes": [],
+        "summary": "No repair needed."
+      }
+    }
+  ],
+  "final_metrics": {
+    "objective_plan_gap_fit": {
+      "score": 3,
+      "rationale": "Candidate maps to both an objective metric and a current-plan gap.",
+      "evidence": [
+        "metric:metric-v1-recovery-correctness",
+        "gap:gap-v1-transaction-wal-recovery"
+      ]
+    },
+    "causal_evidence_strength": {
+      "score": 3,
+      "rationale": "Candidate has concrete evidence for the proposed intervention.",
+      "evidence": [
+        "Root Progress Projection: artifact_status는 `open`이고 `gate-v1-transactions-wal-recovery`는 `missing satisfied requirement rows` 때문에 `open`입니다.",
+        "Root Progress Projection: `req-v1-wal-recovery-proof`는 WAL replay가 committed changes survival과 uncommitted absence를 증명해야 하지만 현재 `open`입니다.",
+        "Root Progress Projection: `gap-v1-transaction-wal-recovery`는 prior manifest repo SHA `754958b37fd01f796b9d4f7522a2062b6e65abc5`와 현재 repo SHA `33b480cac6cf9d505a86eda4c149a4471454f11d` 불일치로 `stale_needs_recheck`입니다.",
+        "Current Plan: `gap-v1-transaction-wal-recovery`는 high priority이며 `metric-v1-recovery-correctness`와 `gate-v1-transactions-wal-recovery`에 연결됩니다.",
+        "Current Artifact: `req-v1-wal-recovery-proof`는 recover 후 committed changes survival과 uncommitted changes absence를 요구합니다.",
+        "Active Managed Repo Snapshot: queue는 비어 있고 git_status는 clean이며, 2026-05-18 history/progress는 minimal WAL recovery milestone이 추가되었다고 보고합니다.",
+        "Root Progress Projection: CLI, disk storage, SQL, index gates는 `projected_complete`라 오늘 후보 범위에서 제외됩니다.",
+        "src/storage.rs",
+        "tests/wal_recovery.rs",
+        "docs/file_format.md",
+        "docs/cli_contract.md",
+        "specs/v1-transaction-wal-recovery/spec.md",
+        "specs/v1-transaction-wal-recovery/contracts.md",
+        "specs/v1-transaction-wal-recovery/qa_mapping.md",
+        "specs/v1-transaction-wal-recovery/impl_review.md",
+        "specs/v1-transaction-wal-recovery/code_review.md",
+        "specs/v1-transaction-wal-recovery/final_review.md",
+        "specs/v1-transaction-wal-recovery/review_loop/metric_loop_evidence.md",
+        "work_queue/progress.md",
+        "autopilot/ssot/current-artifact.md",
+        "autopilot/project_manager/tasks/tasks.json",
+        "PageStore::open",
+        "PageStore::append_record",
+        "replay_wal",
+        "append_wal_frame",
+        "next_wal_frame_id",
+        "wal_checksum",
+        "wal_path",
+        "committed_wal_replay_survives_reopen_via_cli",
+        "incomplete_wal_entry_is_not_replayed_without_public_rollback_cli",
+        "committed_frame_after_incomplete_tail_cleanup_remains_replayable",
+        "committed_wal_frame_ahead_of_page_store_fails_deterministically",
+        "autopilot/project_manager/tasks/tasks.json#task-2026-05-17-23-45-17-v1-transaction-wal-recovery:SUCCESS",
+        "autopilot/project_manager/tasks/tasks.json#artifact_gate:gate-v1-transactions-wal-recovery",
+        "autopilot/project_manager/tasks/tasks.json#artifact_requirement_ids:req-v1-wal-recovery-proof",
+        "autopilot/project_manager/tasks/tasks.json#repo_after_sha:754958b37fd01f796b9d4f7522a2062b6e65abc5"
+      ]
+    },
+    "handoff_verifiability": {
+      "score": 3,
+      "rationale": "Expected delta and acceptance proof are explicit.",
+      "evidence": [
+        "`cargo test --test wal_recovery`가 현재 managed repo SHA에서 통과하고, committed mutation이 reopen/replay 뒤 살아남는 케이스를 검증합니다.",
+        "동일 테스트 또는 별도 deterministic fixture가 incomplete trailing WAL entry 또는 uncommitted change가 복구 후 결과 rows에 나타나지 않음을 검증합니다.",
+        "`./scripts/verify`가 통과해 fmt, clippy, full test suite, `db --help` smoke를 함께 보장합니다.",
+        "CLI smoke transcript가 temp DB에서 create/insert 후 reopen select의 deterministic stdout과 WAL sidecar/replay 상태를 증명합니다.",
+        "최종 evidence가 `gap-v1-transaction-wal-recovery`, `gate-v1-transactions-wal-recovery`, `req-v1-wal-recovery-proof`에 명시적으로 매핑됩니다."
+      ]
+    }
+  },
+  "low_metrics": [],
+  "constraint_blockers": [],
+  "artifact_mapping": {
+    "source": "inferred_current_plan_gap",
+    "blocker": "",
+    "blocker_reason": "",
+    "resolved_requirement_ids": [
+      "req-v1-wal-recovery-proof"
+    ],
+    "resolved_gates": [
+      "gate-v1-transactions-wal-recovery"
+    ],
+    "explicit": {
+      "requirement_ids": [],
+      "launch_gates": [],
+      "valid_requirement_ids": [],
+      "valid_launch_gates": [],
+      "unknown_requirement_ids": [],
+      "unknown_launch_gates": [],
+      "resolved_requirement_ids": [],
+      "resolved_gates": [],
+      "present": false
+    },
+    "inferred": {
+      "current_plan_gap_id": "gap-v1-transaction-wal-recovery",
+      "launch_gates": [
+        "gate-v1-transactions-wal-recovery"
+      ],
+      "requirement_ids": [
+        "req-v1-wal-recovery-proof"
+      ],
+      "valid": true
+    },
+    "artifact_contract": {
+      "requirement_ids": [
+        "req-v1-acceptance-docs",
+        "req-v1-benchmark-lower-bounds",
+        "req-v1-cli-dispatch-tests",
+        "req-v1-cli-help-smoke",
+        "req-v1-crash-matrix-output",
+        "req-v1-db-check-proof",
+        "req-v1-differential-property-proof",
+        "req-v1-page-storage-restart",
+        "req-v1-primary-index-proof",
+        "req-v1-record-format-doc",
+        "req-v1-secondary-index-proof",
+        "req-v1-sql-exec-examples",
+        "req-v1-wal-recovery-proof"
+      ],
+      "launch_gates": [
+        "gate-v1-bench-docs-acceptance",
+        "gate-v1-cli-smoke",
+        "gate-v1-crash-testing",
+        "gate-v1-db-check-invariants",
+        "gate-v1-differential-property-tests",
+        "gate-v1-disk-page-storage",
+        "gate-v1-indexes",
+        "gate-v1-sql-schema-exec",
+        "gate-v1-transactions-wal-recovery"
+      ]
+    }
+  },
+  "repair_attempts": 0,
+  "final_disposition": "ready_for_handoff",
+  "evidence_gap_type": "",
+  "confidence_gap_reason": "",
+  "research_question": "",
+  "hypothesis_lineage": {
+    "objective_metric_id": "metric-v1-recovery-correctness",
+    "current_plan_gap_id": "gap-v1-transaction-wal-recovery",
+    "target_boundary": "managed_repo"
+  },
+  "repairability": {
+    "repairable": false,
+    "reason": "already_ready",
+    "allowed_findings": [],
+    "blocked_findings": []
+  }
+}

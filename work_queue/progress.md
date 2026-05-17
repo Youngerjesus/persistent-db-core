@@ -2,7 +2,7 @@
 
 ## Current State
 
-`persistent-db-core` now has the V1 CLI smoke contract, durable page storage, the minimal SQL schema/execute path, primary-key indexed lookup/ordered scan proof, and minimal transaction WAL replay evidence for `db exec`. The next smallest implementation handoff should target secondary indexes, the deterministic crash matrix, or validation gaps on top of the SQL execution and recovery baseline.
+`persistent-db-core` now has the V1 CLI smoke contract, durable page storage, the minimal SQL schema/execute path, primary-key indexed lookup/ordered scan proof, and current-SHA transaction WAL replay evidence for `db exec`. The next smallest implementation handoff should target secondary indexes, the deterministic crash matrix, or validation gaps on top of the SQL execution and recovery baseline.
 
 ## Gap Snapshot
 
@@ -13,7 +13,7 @@
 | gap-v1-sql-parser-schema-exec | verification_ready | `db exec <path> <sql>` implements the documented minimal SQL subset with deterministic tests, persistence coverage, and durable docs. |
 | gap-v1-primary-btree-index | verification_ready | Primary-key tables rebuild an in-memory B-tree index from durable row records, support exact lookup, scan in primary-key order, and preserve row-only table compatibility. |
 | gap-v1-secondary-index-range-scan | missing_evidence | No secondary index support yet. |
-| gap-v1-transaction-wal-recovery | verification_ready | Minimal WAL sidecar replay now proves committed mutation survival and incomplete-tail exclusion after reopen. |
+| gap-v1-transaction-wal-recovery | verification_ready | Current-SHA WAL sidecar replay proof covers committed mutation survival, rolled-back/uncommitted frame absence, incomplete-tail exclusion, and retained sidecar state after reopen. |
 | gap-v1-deterministic-crash-matrix | missing_evidence | No deterministic crash matrix yet. |
 | gap-v1-differential-property-tests | missing_evidence | No SQLite differential/property test harness yet. |
 | gap-v1-db-check-invariants | missing_evidence | No `db check` invariant command yet. |
@@ -21,6 +21,7 @@
 
 ## Recent Entries
 
+- 2026-05-18: Reverified WAL recovery at current SHA with focused WAL tests, baseline `scripts/verify`, CLI reopen smoke, retained WAL sidecar byte evidence, and explicit mapping to `req-v1-wal-recovery-proof`.
 - 2026-05-18: Added minimal transaction WAL recovery evidence: committed `db exec` mutations survive reopen, incomplete trailing WAL entries are excluded, retained WAL replay is idempotent, and the WAL sidecar format is documented.
 - 2026-05-17: Added primary-key indexed query evidence for `db exec`: single `INT PRIMARY KEY` declarations, duplicate-key rejection, exact lookup, primary-key ordered scans, reopen/rebuild coverage, row-only compatibility, and primary-index persistence docs.
 - 2026-05-17: Implemented the minimal SQL schema/execute path for `db exec <path> <sql>`, including parser/executor, SQL logical records over `PageStore`, exact CLI error contracts, restart and mid-command failure coverage, and SQL/file-format docs.
