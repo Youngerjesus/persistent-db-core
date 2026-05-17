@@ -1,0 +1,10 @@
+
+running 5 tests
+test committed_wal_frame_ahead_of_page_store_fails_deterministically ... ok
+test committed_wal_replay_survives_reopen_via_cli ... ok
+test rolled_back_wal_frame_is_not_replayed_as_uncommitted_change ... ok
+test incomplete_wal_entry_is_not_replayed_without_public_rollback_cli ... ok
+test committed_frame_after_incomplete_tail_cleanup_remains_replayable ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.49s
+

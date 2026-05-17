@@ -1,0 +1,13 @@
+    Checking persistent-db-core v0.1.0 (/Users/jeongmin/Downloads/projects/autopilot-test/01-clear-answer-complex-software-db-core/persistent-db-core_worktree/task-2026-05-18-00-55-20-v1-wal-recovery-current-sha-proof)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.12s
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.04s
+     Running unittests src/lib.rs (target/debug/deps/persistent_db_core-09b9a4a378ba6927)
+     Running unittests src/main.rs (target/debug/deps/db-f853a78631ad1ded)
+     Running tests/cli_contract.rs (target/debug/deps/cli_contract-868cd48f686d6ba8)
+     Running tests/page_storage.rs (target/debug/deps/page_storage-cfe4d4ad134d506f)
+     Running tests/primary_index.rs (target/debug/deps/primary_index-c3844931e2c17c52)
+     Running tests/sql_exec.rs (target/debug/deps/sql_exec-2f70a03713bd4453)
+     Running tests/wal_recovery.rs (target/debug/deps/wal_recovery-aacbfc3a9de1e079)
+   Doc-tests persistent_db_core
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.00s
+     Running `target/debug/db --help`

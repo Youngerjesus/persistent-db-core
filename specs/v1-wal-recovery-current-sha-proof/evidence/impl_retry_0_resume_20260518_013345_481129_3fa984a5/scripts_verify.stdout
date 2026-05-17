@@ -1,0 +1,111 @@
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 5 tests
+test help_flag_prints_required_contract ... ok
+test reserved_future_command_remains_unsupported ... ok
+test exec_requires_path_and_single_sql_argument ... ok
+test unsupported_argument_reports_first_token ... ok
+test help_subcommand_matches_help_flag ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.17s
+
+
+running 10 tests
+test truncated_file_returns_error ... ok
+test invalid_data_page_magic_returns_error ... ok
+test unsupported_format_version_returns_error ... ok
+test invalid_magic_returns_error ... ok
+test truncated_page_returns_error ... ok
+test page_overflow_record_returns_error ... ok
+test corrupt_record_length_returns_error ... ok
+test append_read_preserves_order_and_bytes ... ok
+test reopen_reads_previously_appended_records ... ok
+test record_encoding_supports_empty_ascii_and_binary_payloads ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 7 tests
+test primary_index_empty_ordered_positions_are_empty ... ok
+test primary_index_insert_find_missing_duplicate_and_len ... ok
+test primary_index_ordered_positions_are_ascending_by_key ... ok
+test primary_index_missing_key_and_empty_scan_are_deterministic ... ok
+test primary_index_existing_row_only_catalog_remains_insert_order ... ok
+test primary_index_duplicate_persisted_key_fails_as_invalid_storage_record ... ok
+test primary_index_rebuild_from_persisted_rows_survives_reopen ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+
+running 28 tests
+test malformed_select_shape_reports_exact_statement ... ok
+test happy_path_creates_inserts_and_selects_rows_in_insert_order ... ok
+test failed_command_suppresses_partial_select_stdout ... ok
+test malformed_sql_reports_exact_statement ... ok
+test primary_key_empty_table_scan_outputs_header_only ... ok
+test empty_table_select_outputs_header_only ... ok
+test multiple_selects_repeat_headers_without_separators ... ok
+test identifiers_compare_case_insensitively_but_preserve_catalog_spelling ... ok
+test malformed_select_trailing_token_reports_exact_statement ... ok
+test primary_key_duplicate_insert_fails_before_appending_row ... ok
+test mid_command_failure_keeps_prior_successes_and_skips_later_statements ... ok
+test primary_key_missing_lookup_outputs_header_only ... ok
+test primary_key_rejects_text_primary_key_declaration ... ok
+test primary_key_non_pk_table_preserves_insert_order ... ok
+test primary_key_where_on_missing_table_reports_table_not_found ... ok
+test primary_key_exact_lookup_outputs_matching_row_after_reopen ... ok
+test primary_key_select_all_scans_in_key_order_not_insert_order ... ok
+test primary_key_rejects_non_primary_key_where_without_full_scan ... ok
+test signed_decimal_int_literals_accept_noncanonical_zero_spelling ... ok
+test sql_prefixed_duplicate_column_catalog_record_fails_deterministically ... ok
+test unsupported_sql_reports_exact_statement ... ok
+test primary_key_rejects_range_predicate_without_full_scan ... ok
+test primary_key_rejects_order_by_without_full_scan ... ok
+test restart_persists_catalog_and_rows ... ok
+test unknown_sql_storage_record_fails_deterministically ... ok
+test sql_prefixed_noncanonical_int_row_record_fails_deterministically ... ok
+test sql_prefixed_output_breaking_text_row_record_fails_deterministically ... ok
+test semantic_failure_matrix_reports_exact_errors ... ok
+
+test result: ok. 28 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+
+running 5 tests
+test committed_wal_frame_ahead_of_page_store_fails_deterministically ... ok
+test committed_wal_replay_survives_reopen_via_cli ... ok
+test committed_frame_after_incomplete_tail_cleanup_remains_replayable ... ok
+test rolled_back_wal_frame_is_not_replayed_as_uncommitted_change ... ok
+test incomplete_wal_entry_is_not_replayed_without_public_rollback_cli ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+db - deterministic single-process V1 database CLI
+Usage:
+  db --help
+  db help
+  db exec <path> <sql>
+Supported commands:
+  help        Print this help text.
+  exec <path> <sql>
+Reserved future commands:
+  open <path>
+  check <path>
+  bench <path>
+V1 scope:
+  This build supports the CLI contract, page storage, and the documented minimal SQL subset.
+Non-goals:
+  No network server, multi-process concurrency, or distributed storage.

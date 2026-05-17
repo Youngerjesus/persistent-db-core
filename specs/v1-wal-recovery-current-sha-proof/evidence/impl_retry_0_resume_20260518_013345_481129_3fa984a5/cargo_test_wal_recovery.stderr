@@ -1,0 +1,2 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.00s
+     Running tests/wal_recovery.rs (target/debug/deps/wal_recovery-aacbfc3a9de1e079)
