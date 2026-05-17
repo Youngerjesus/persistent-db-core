@@ -49,10 +49,23 @@ without the SQL prefix are valid page-storage payloads, but they are not valid
 SQL database records and are rejected by `db exec` with the documented invalid
 SQL storage record error.
 
+Catalog records may include an optional primary-key extension after the ordered
+column metadata: byte tag `P` followed by a little-endian `u16` zero-based
+column index. The referenced column must be `INT`. Catalog records without this
+extension are valid row-only SQL catalogs and load as tables without a primary
+key.
+
+Primary indexes are not persisted as separate page records, sidecar files, or
+background metadata. `db exec` rebuilds the in-memory primary index from durable
+row records when the database is opened. A primary-key table with duplicate
+persisted key values is treated as corrupt SQL logical data and fails with the
+existing invalid SQL storage record error. Because no separate index metadata is
+stored, missing index metadata is not a V1 failure mode.
+
 ## Validation Errors
 
 Opening or reading a file validates the header and every declared data page. Short files return a truncated-file error. Non-page-aligned files or missing declared pages return a truncated-page error. Invalid file or data page magic returns an invalid-magic error. Unsupported format versions return an unsupported-version error. Record lengths that exceed the page used bytes or page capacity return a corrupt-record-length error. Oversized appends return a record-too-large error.
 
 ## Compatibility Note
 
-V1 is pre-launch and does not guarantee backward compatibility for existing user data. After this page and record format is introduced, format changes must not be made implicitly: the documentation and deterministic tests must be updated together with any intentional format change. SQL logical-record evolution must preserve the lower-level page framing unless a future task explicitly changes the page format contract.
+V1 is pre-launch and does not guarantee backward compatibility for existing user data. After this page and record format is introduced, format changes must not be made implicitly: the documentation and deterministic tests must be updated together with any intentional format change. SQL logical-record evolution must preserve the lower-level page framing unless a future task explicitly changes the page format contract. The primary-key catalog extension is optional so existing row-only SQL database files remain readable as non-primary-key tables.

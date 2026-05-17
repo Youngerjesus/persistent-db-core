@@ -53,7 +53,7 @@ fn exit_with_sql_error(error: SqlError) -> ! {
         SqlError::Unsupported(statement) => {
             eprintln!("error: unsupported SQL statement: {statement}");
             eprintln!(
-                "hint: supported SQL subset: CREATE TABLE, INSERT INTO ... VALUES, SELECT * FROM ...;"
+                "hint: supported SQL subset: CREATE TABLE, INSERT INTO ... VALUES, SELECT * FROM ..., SELECT * FROM ... WHERE <primary_key> = <int>;"
             );
             process::exit(2);
         }

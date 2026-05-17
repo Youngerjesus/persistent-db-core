@@ -68,6 +68,23 @@ fn assert_exec(path: &Path, sql: &str, code: i32, expected_stdout: &str, expecte
     assert_eq!(expected_stderr, stderr(&output));
 }
 
+fn assert_rejected_without_stdout(path: &Path, sql: &str) {
+    let output = exec_sql(path, sql);
+    assert_eq!(
+        Some(2),
+        output.status.code(),
+        "unexpected exit; stdout={:?}; stderr={:?}",
+        stdout(&output),
+        stderr(&output)
+    );
+    assert_eq!("", stdout(&output));
+    assert!(
+        stderr(&output).starts_with("error: "),
+        "stderr should contain a deterministic user-facing error, got {:?}",
+        stderr(&output)
+    );
+}
+
 fn append_fixture_record(path: &Path, payload: &[u8]) {
     let mut store = PageStore::open(path).expect("fixture database should open");
     store
@@ -238,22 +255,22 @@ fn unsupported_sql_reports_exact_statement() {
         "SELECT id FROM users;",
         2,
         "",
-        "error: unsupported SQL statement: SELECT id FROM users;\nhint: supported SQL subset: CREATE TABLE, INSERT INTO ... VALUES, SELECT * FROM ...;\n",
+        "error: unsupported SQL statement: SELECT id FROM users;\nhint: supported SQL subset: CREATE TABLE, INSERT INTO ... VALUES, SELECT * FROM ..., SELECT * FROM ... WHERE <primary_key> = <int>;\n",
     );
 
     cleanup(&path);
 }
 
 #[test]
-fn unsupported_select_where_reports_exact_statement() {
-    let path = temp_db_path("unsupported_select_where_reports_exact_statement");
+fn primary_key_where_on_missing_table_reports_table_not_found() {
+    let path = temp_db_path("primary_key_where_on_missing_table_reports_table_not_found");
 
     assert_exec(
         &path,
         "SELECT * FROM users WHERE id = 1;",
         2,
         "",
-        "error: unsupported SQL statement: SELECT * FROM users WHERE id = 1;\nhint: supported SQL subset: CREATE TABLE, INSERT INTO ... VALUES, SELECT * FROM ...;\n",
+        "error: SQL semantic error: table not found: users\nhint: create the table before INSERT or SELECT.\n",
     );
 
     cleanup(&path);
@@ -421,6 +438,167 @@ fn sql_prefixed_noncanonical_int_row_record_fails_deterministically() {
         "",
         INVALID_SQL_STORAGE_STDERR,
     );
+
+    cleanup(&path);
+}
+
+#[test]
+fn primary_key_exact_lookup_outputs_matching_row_after_reopen() {
+    let path = temp_db_path("primary_key_exact_lookup_outputs_matching_row_after_reopen");
+
+    assert_exec(
+        &path,
+        "CREATE TABLE users (id INT PRIMARY KEY, name TEXT); INSERT INTO users VALUES (2, 'bea'); INSERT INTO users VALUES (1, 'ada'); INSERT INTO users VALUES (3, 'cal');",
+        0,
+        "",
+        "",
+    );
+    assert_exec(
+        &path,
+        "SELECT * FROM users WHERE id = 2;",
+        0,
+        "id|name\n2|bea\n",
+        "",
+    );
+
+    cleanup(&path);
+}
+
+#[test]
+fn primary_key_select_all_scans_in_key_order_not_insert_order() {
+    let path = temp_db_path("primary_key_select_all_scans_in_key_order_not_insert_order");
+
+    assert_exec(
+        &path,
+        "CREATE TABLE users (id INT PRIMARY KEY, name TEXT); INSERT INTO users VALUES (2, 'bea'); INSERT INTO users VALUES (1, 'ada'); INSERT INTO users VALUES (3, 'cal'); SELECT * FROM users;",
+        0,
+        "id|name\n1|ada\n2|bea\n3|cal\n",
+        "",
+    );
+
+    cleanup(&path);
+}
+
+#[test]
+fn primary_key_missing_lookup_outputs_header_only() {
+    let path = temp_db_path("primary_key_missing_lookup_outputs_header_only");
+
+    assert_exec(
+        &path,
+        "CREATE TABLE users (id INT PRIMARY KEY, name TEXT); INSERT INTO users VALUES (2, 'bea'); SELECT * FROM users WHERE id = 9;",
+        0,
+        "id|name\n",
+        "",
+    );
+
+    cleanup(&path);
+}
+
+#[test]
+fn primary_key_duplicate_insert_fails_before_appending_row() {
+    let path = temp_db_path("primary_key_duplicate_insert_fails_before_appending_row");
+
+    assert_exec(
+        &path,
+        "CREATE TABLE users (id INT PRIMARY KEY, name TEXT); INSERT INTO users VALUES (2, 'bea'); INSERT INTO users VALUES (2, 'dupe');",
+        2,
+        "",
+        "error: SQL semantic error: duplicate primary key for table users: 2\nhint: primary key values must be unique.\n",
+    );
+    assert_exec(&path, "SELECT * FROM users;", 0, "id|name\n2|bea\n", "");
+
+    cleanup(&path);
+}
+
+#[test]
+fn primary_key_empty_table_scan_outputs_header_only() {
+    let path = temp_db_path("primary_key_empty_table_scan_outputs_header_only");
+
+    assert_exec(
+        &path,
+        "CREATE TABLE empty_users (id INT PRIMARY KEY, name TEXT); SELECT * FROM empty_users;",
+        0,
+        "id|name\n",
+        "",
+    );
+
+    cleanup(&path);
+}
+
+#[test]
+fn primary_key_non_pk_table_preserves_insert_order() {
+    let path = temp_db_path("primary_key_non_pk_table_preserves_insert_order");
+
+    assert_exec(
+        &path,
+        "CREATE TABLE users (id INT, name TEXT); INSERT INTO users VALUES (2, 'bea'); INSERT INTO users VALUES (1, 'ada'); SELECT * FROM users;",
+        0,
+        "id|name\n2|bea\n1|ada\n",
+        "",
+    );
+
+    cleanup(&path);
+}
+
+#[test]
+fn primary_key_rejects_text_primary_key_declaration() {
+    let path = temp_db_path("primary_key_rejects_text_primary_key_declaration");
+
+    assert_exec(
+        &path,
+        "CREATE TABLE users (id TEXT PRIMARY KEY, name TEXT);",
+        2,
+        "",
+        "error: SQL semantic error: primary key column must be INT: id\nhint: this SQL slice supports one INT PRIMARY KEY column per table.\n",
+    );
+
+    cleanup(&path);
+}
+
+#[test]
+fn primary_key_rejects_non_primary_key_where_without_full_scan() {
+    let path = temp_db_path("primary_key_rejects_non_primary_key_where_without_full_scan");
+
+    assert_exec(
+        &path,
+        "CREATE TABLE users (id INT PRIMARY KEY, name TEXT); INSERT INTO users VALUES (1, 'ada'); INSERT INTO users VALUES (2, 'bea');",
+        0,
+        "",
+        "",
+    );
+    assert_rejected_without_stdout(&path, "SELECT * FROM users WHERE name = 'ada';");
+
+    cleanup(&path);
+}
+
+#[test]
+fn primary_key_rejects_range_predicate_without_full_scan() {
+    let path = temp_db_path("primary_key_rejects_range_predicate_without_full_scan");
+
+    assert_exec(
+        &path,
+        "CREATE TABLE users (id INT PRIMARY KEY, name TEXT); INSERT INTO users VALUES (1, 'ada'); INSERT INTO users VALUES (2, 'bea');",
+        0,
+        "",
+        "",
+    );
+    assert_rejected_without_stdout(&path, "SELECT * FROM users WHERE id > 1;");
+
+    cleanup(&path);
+}
+
+#[test]
+fn primary_key_rejects_order_by_without_full_scan() {
+    let path = temp_db_path("primary_key_rejects_order_by_without_full_scan");
+
+    assert_exec(
+        &path,
+        "CREATE TABLE users (id INT PRIMARY KEY, name TEXT); INSERT INTO users VALUES (1, 'ada'); INSERT INTO users VALUES (2, 'bea');",
+        0,
+        "",
+        "",
+    );
+    assert_rejected_without_stdout(&path, "SELECT * FROM users ORDER BY id;");
 
     cleanup(&path);
 }

@@ -8,8 +8,10 @@ order.
 
 ```text
 CREATE TABLE <table_name> (<column_name> INT|TEXT[, <column_name> INT|TEXT]*);
+CREATE TABLE <table_name> (<column_name> INT PRIMARY KEY[, <column_name> INT|TEXT]*);
 INSERT INTO <table_name> VALUES (<value>[, <value>]*);
 SELECT * FROM <table_name>;
+SELECT * FROM <table_name> WHERE <primary_key_column> = <int_value>;
 ```
 
 Keywords compare ASCII case-insensitively. Identifiers must match
@@ -20,16 +22,23 @@ integers. `TEXT` values are UTF-8 strings inside single quotes; escape
 sequences, embedded single quotes, `|`, newline, and carriage return are not
 supported.
 
-Projection, `WHERE`, `ORDER BY`, `JOIN`, `UPDATE`, `DELETE`, constraints,
-defaults, `NULL`, quoted identifiers, and transactions are out of scope.
+This slice supports at most one `INT PRIMARY KEY` column per table. `TEXT
+PRIMARY KEY`, multiple primary-key columns, non-primary-key predicates, range
+predicates, and non-integer predicate values are rejected.
+
+Projection, general `WHERE`, `ORDER BY`, `JOIN`, `UPDATE`, `DELETE`, defaults,
+`NULL`, quoted identifiers, and transactions are out of scope.
 
 ## Output
 
-`SELECT * FROM <table_name>;` prints the catalog column order as a header, then
-rows in successful `INSERT` append order. Fields are delimited with `|`, and
-each output line ends with `\n`. Empty tables print only the header. Multiple
-`SELECT` statements repeat headers without blank lines, separators, or count
-lines.
+`SELECT * FROM <table_name>;` prints the catalog column order as a header. For
+tables without a primary key, rows print in successful `INSERT` append order.
+For tables with an `INT PRIMARY KEY`, rows print in ascending primary-key order.
+`SELECT * FROM <table_name> WHERE <primary_key_column> = <int_value>;` prints
+the header and the matching row, or only the header when the key is missing.
+Fields are delimited with `|`, and each output line ends with `\n`. Empty tables
+print only the header. Multiple `SELECT` statements repeat headers without blank
+lines, separators, or count lines.
 
 If any statement in a command fails, command stdout is empty even if an earlier
 statement produced a result set. This task does not provide command-level
@@ -42,7 +51,7 @@ Unsupported SQL exits `2`, writes empty stdout, and uses this stderr:
 
 ```text
 error: unsupported SQL statement: SELECT id FROM users;
-hint: supported SQL subset: CREATE TABLE, INSERT INTO ... VALUES, SELECT * FROM ...;
+hint: supported SQL subset: CREATE TABLE, INSERT INTO ... VALUES, SELECT * FROM ..., SELECT * FROM ... WHERE <primary_key> = <int>;
 ```
 
 Malformed SQL exits `2`, writes empty stdout, and uses this stderr:
@@ -86,6 +95,16 @@ error: SQL semantic error: type mismatch for column id: expected INT, got TEXT
 hint: INSERT values must match the declared column types.
 ```
 
+```text
+error: SQL semantic error: duplicate primary key for table users: 2
+hint: primary key values must be unique.
+```
+
+```text
+error: SQL semantic error: primary key column must be INT: id
+hint: this SQL slice supports one INT PRIMARY KEY column per table.
+```
+
 Invalid SQL logical records exit `1`, write empty stdout, and use this stderr:
 
 ```text
@@ -118,6 +137,9 @@ repeat column_count:
   u16 column_name_len
   column_name UTF-8 bytes
   u8 type tag: I for INT, T for TEXT
+optional primary-key extension for new primary-key tables:
+  u8 extension tag: P
+  u16 zero-based primary-key column index
 ```
 
 Row payload body:
@@ -141,3 +163,18 @@ single-quoted SQL literal.
 
 Existing arbitrary `PageStore` payloads without this SQL prefix are not valid
 SQL database records and fail with the invalid SQL storage record error above.
+
+Primary indexes are not persisted as separate records, pages, or metadata
+files. The only persisted primary-key metadata is the optional catalog extension
+that marks which `INT` column owns the primary-key constraint. On every
+`db exec` invocation, the executor reads catalog and row records and rebuilds an
+in-memory `BTreeMap` primary index from durable row records. Existing row-only
+SQL catalog records without the primary-key extension remain compatible and load
+as non-primary-key tables, so `SELECT *` keeps insert-order output for those
+tables.
+
+If durable row records for a primary-key table contain duplicate primary-key
+values, non-canonical integer values, output-breaking text, unknown type tags,
+or other corrupt SQL logical-record data, `db exec` fails through the existing
+invalid SQL storage record error. There is no missing-index-metadata failure
+mode in this slice because no separate index metadata is stored.
