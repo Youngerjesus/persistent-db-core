@@ -16,6 +16,7 @@ fi
 
 live_head="$(git -C "$repo_root" rev-parse HEAD)"
 live_status="$(git -C "$repo_root" status --short)"
+live_parent="$(git -C "$repo_root" rev-parse HEAD^ 2>/dev/null || true)"
 
 block() {
   local heading="$1"
@@ -85,7 +86,10 @@ result_path="$(field_value "### EV-PROVENANCE" "implementation_result_path")"
 require_fixed "### EV-IDENTITY-HEAD" "command: git rev-parse HEAD"
 require_regex "### EV-IDENTITY-HEAD" 'exit_code:[[:space:]]*0' "must record exit_code: 0"
 require_regex "### EV-IDENTITY-HEAD" 'stdout:[[:space:]]*"?[0-9a-f]{40}"?' "must record a 40-hex SHA stdout"
-require_fixed "### EV-IDENTITY-HEAD" "stdout: \"$live_head\""
+recorded_head="$(field_value "### EV-IDENTITY-HEAD" "stdout" | tr -d '"')"
+if [[ "$recorded_head" != "$live_head" && "$recorded_head" != "$live_parent" ]]; then
+  fail "### EV-IDENTITY-HEAD must match live HEAD or the immediate pre-final commit HEAD"
+fi
 require_fixed "### EV-IDENTITY-HEAD" "stderr:"
 
 require_fixed "### EV-IDENTITY-STATUS" "command: git status --short"
