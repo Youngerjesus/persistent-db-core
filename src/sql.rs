@@ -1,3 +1,4 @@
+use crate::index::PrimaryIndex;
 use crate::storage::{PageStore, StorageError};
 use std::fs;
 use std::path::Path;
@@ -55,6 +56,7 @@ impl ColumnType {
 struct Column {
     name: String,
     column_type: ColumnType,
+    is_primary_key: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -62,6 +64,8 @@ struct Table {
     name: String,
     columns: Vec<Column>,
     rows: Vec<Vec<Value>>,
+    primary_key_column: Option<usize>,
+    primary_index: PrimaryIndex,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -88,9 +92,23 @@ impl Value {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum Statement {
-    CreateTable { table: String, columns: Vec<Column> },
-    Insert { table: String, values: Vec<Value> },
-    SelectAll { table: String },
+    CreateTable {
+        table: String,
+        columns: Vec<Column>,
+    },
+    Insert {
+        table: String,
+        values: Vec<Value>,
+    },
+    SelectAll {
+        table: String,
+    },
+    SelectPrimaryKey {
+        table: String,
+        column: String,
+        key: i64,
+        raw: String,
+    },
 }
 
 #[derive(Debug, Default)]
@@ -104,7 +122,7 @@ impl Database {
         for record in records {
             match decode_record(&record)? {
                 LogicalRecord::Catalog { table, columns } => {
-                    validate_catalog_record_invariants(&table, &columns)?;
+                    let primary_key_column = validate_catalog_record_invariants(&table, &columns)?;
                     if database.find_table(&table).is_some() {
                         return Err(SqlError::InvalidStorageRecord);
                     }
@@ -112,6 +130,8 @@ impl Database {
                         name: table,
                         columns,
                         rows: Vec::new(),
+                        primary_key_column,
+                        primary_index: PrimaryIndex::new(),
                     });
                 }
                 LogicalRecord::Row { table, values } => {
@@ -126,6 +146,15 @@ impl Database {
                             return Err(SqlError::InvalidStorageRecord);
                         }
                         validate_loaded_value(value)?;
+                    }
+                    if let Some(primary_key_column) = existing.primary_key_column {
+                        let Value::Int(key) = values[primary_key_column] else {
+                            return Err(SqlError::InvalidStorageRecord);
+                        };
+                        existing
+                            .primary_index
+                            .insert(key, existing.rows.len())
+                            .map_err(|_| SqlError::InvalidStorageRecord)?;
                     }
                     existing.rows.push(values);
                 }
@@ -147,11 +176,15 @@ impl Database {
     }
 }
 
-fn validate_catalog_record_invariants(table: &str, columns: &[Column]) -> Result<(), SqlError> {
+fn validate_catalog_record_invariants(
+    table: &str,
+    columns: &[Column],
+) -> Result<Option<usize>, SqlError> {
     if !is_valid_identifier(table) || columns.is_empty() {
         return Err(SqlError::InvalidStorageRecord);
     }
 
+    let mut primary_key_column = None;
     for (index, column) in columns.iter().enumerate() {
         if !is_valid_identifier(&column.name)
             || columns[..index]
@@ -160,9 +193,15 @@ fn validate_catalog_record_invariants(table: &str, columns: &[Column]) -> Result
         {
             return Err(SqlError::InvalidStorageRecord);
         }
+        if column.is_primary_key {
+            if column.column_type != ColumnType::Int || primary_key_column.is_some() {
+                return Err(SqlError::InvalidStorageRecord);
+            }
+            primary_key_column = Some(index);
+        }
     }
 
-    Ok(())
+    Ok(primary_key_column)
 }
 
 fn validate_loaded_value(value: &Value) -> Result<(), SqlError> {
@@ -196,6 +235,14 @@ pub fn execute(path: impl AsRef<Path>, sql: &str) -> Result<String, SqlError> {
             }
             Statement::SelectAll { table } => {
                 execute_select(&database, &table, &mut stdout)?;
+            }
+            Statement::SelectPrimaryKey {
+                table,
+                column,
+                key,
+                raw,
+            } => {
+                execute_select_primary_key(&database, &table, &column, key, &raw, &mut stdout)?;
             }
         }
     }
@@ -240,11 +287,33 @@ fn execute_create_table(
         }
     }
 
+    let mut primary_key_count = 0usize;
+    for column in &columns {
+        if column.is_primary_key {
+            primary_key_count += 1;
+            if column.column_type != ColumnType::Int {
+                return Err(SqlError::Semantic {
+                    message: format!("primary key column must be INT: {}", column.name),
+                    hint: "this SQL slice supports one INT PRIMARY KEY column per table.",
+                });
+            }
+        }
+    }
+    if primary_key_count > 1 {
+        return Err(SqlError::Semantic {
+            message: format!("multiple primary key columns for table {table}"),
+            hint: "this SQL slice supports one INT PRIMARY KEY column per table.",
+        });
+    }
+
     store.append_record(&encode_catalog_record(&table, &columns))?;
+    let primary_key_column = columns.iter().position(|column| column.is_primary_key);
     database.tables.push(Table {
         name: table,
         columns,
         rows: Vec::new(),
+        primary_key_column,
+        primary_index: PrimaryIndex::new(),
     });
     Ok(())
 }
@@ -285,7 +354,28 @@ fn execute_insert(
         }
     }
 
+    if let Some(primary_key_column) = existing.primary_key_column {
+        let Value::Int(key) = values[primary_key_column] else {
+            return Err(SqlError::InvalidStorageRecord);
+        };
+        if existing.primary_index.get(key).is_some() {
+            return Err(SqlError::Semantic {
+                message: format!("duplicate primary key for table {}: {key}", existing.name),
+                hint: "primary key values must be unique.",
+            });
+        }
+    }
+
     store.append_record(&encode_row_record(&existing.name, &values))?;
+    if let Some(primary_key_column) = existing.primary_key_column {
+        let Value::Int(key) = values[primary_key_column] else {
+            return Err(SqlError::InvalidStorageRecord);
+        };
+        existing
+            .primary_index
+            .insert(key, existing.rows.len())
+            .map_err(|_| SqlError::InvalidStorageRecord)?;
+    }
     existing.rows.push(values);
     Ok(())
 }
@@ -295,25 +385,67 @@ fn execute_select(database: &Database, table: &str, stdout: &mut String) -> Resu
         return Err(table_not_found(table));
     };
 
-    for (index, column) in existing.columns.iter().enumerate() {
+    write_header(existing, stdout);
+
+    if existing.primary_key_column.is_some() {
+        for row_position in existing.primary_index.ordered_positions() {
+            write_row(&existing.rows[row_position], stdout);
+        }
+    } else {
+        for row in &existing.rows {
+            write_row(row, stdout);
+        }
+    }
+
+    Ok(())
+}
+
+fn execute_select_primary_key(
+    database: &Database,
+    table: &str,
+    column: &str,
+    key: i64,
+    raw: &str,
+    stdout: &mut String,
+) -> Result<(), SqlError> {
+    let Some(existing) = database.find_table(table) else {
+        return Err(table_not_found(table));
+    };
+    let Some(primary_key_column) = existing.primary_key_column else {
+        return Err(SqlError::Unsupported(raw.to_string()));
+    };
+    if !existing.columns[primary_key_column]
+        .name
+        .eq_ignore_ascii_case(column)
+    {
+        return Err(SqlError::Unsupported(raw.to_string()));
+    }
+
+    write_header(existing, stdout);
+    if let Some(row_position) = existing.primary_index.get(key) {
+        write_row(&existing.rows[row_position], stdout);
+    }
+    Ok(())
+}
+
+fn write_header(table: &Table, stdout: &mut String) {
+    for (index, column) in table.columns.iter().enumerate() {
         if index > 0 {
             stdout.push('|');
         }
         stdout.push_str(&column.name);
     }
     stdout.push('\n');
+}
 
-    for row in &existing.rows {
-        for (index, value) in row.iter().enumerate() {
-            if index > 0 {
-                stdout.push('|');
-            }
-            stdout.push_str(&value.output());
+fn write_row(row: &[Value], stdout: &mut String) {
+    for (index, value) in row.iter().enumerate() {
+        if index > 0 {
+            stdout.push('|');
         }
-        stdout.push('\n');
+        stdout.push_str(&value.output());
     }
-
-    Ok(())
+    stdout.push('\n');
 }
 
 fn table_not_found(table: &str) -> SqlError {
@@ -375,7 +507,7 @@ fn parse_statement(raw: &str) -> Result<Statement, SqlError> {
             }
         })
     } else if starts_with_keyword_sequence(body, &["SELECT"]) {
-        parse_select(body).map_err(|()| {
+        parse_select(body, raw).map_err(|()| {
             if is_malformed_select_shape(body) {
                 SqlError::Malformed(raw.to_string())
             } else {
@@ -453,8 +585,20 @@ fn parse_create_table(body: &str) -> Result<Statement, ()> {
             return Err(());
         };
         column_parser.skip_space();
+        let is_primary_key = if column_parser.consume_keyword("PRIMARY").is_ok() {
+            column_parser.require_space()?;
+            column_parser.consume_keyword("KEY")?;
+            column_parser.skip_space();
+            true
+        } else {
+            false
+        };
         column_parser.finish()?;
-        columns.push(Column { name, column_type });
+        columns.push(Column {
+            name,
+            column_type,
+            is_primary_key,
+        });
     }
 
     if columns.is_empty() {
@@ -491,7 +635,7 @@ fn parse_insert(body: &str) -> Result<Statement, ()> {
     Ok(Statement::Insert { table, values })
 }
 
-fn parse_select(body: &str) -> Result<Statement, ()> {
+fn parse_select(body: &str, raw: &str) -> Result<Statement, ()> {
     let mut parser = Parser::new(body);
     parser.consume_keyword("SELECT")?;
     parser.require_space()?;
@@ -501,6 +645,22 @@ fn parse_select(body: &str) -> Result<Statement, ()> {
     parser.require_space()?;
     let table = parser.consume_identifier()?;
     parser.skip_space();
+    if parser.consume_keyword("WHERE").is_ok() {
+        parser.require_space()?;
+        let column = parser.consume_identifier()?;
+        parser.skip_space();
+        parser.consume_char('=')?;
+        parser.skip_space();
+        let key = parser.consume_int_literal()?;
+        parser.skip_space();
+        parser.finish()?;
+        return Ok(Statement::SelectPrimaryKey {
+            table,
+            column,
+            key,
+            raw: raw.to_string(),
+        });
+    }
     parser.finish()?;
     Ok(Statement::SelectAll { table })
 }
@@ -668,6 +828,32 @@ impl<'a> Parser<'a> {
         Ok(identifier)
     }
 
+    fn consume_int_literal(&mut self) -> Result<i64, ()> {
+        let remaining = self.input.get(self.offset..).ok_or(())?;
+        let mut end = self.offset;
+        let mut chars = remaining.char_indices();
+        if let Some((_, ch)) = chars.next() {
+            if ch == '+' || ch == '-' {
+                end += ch.len_utf8();
+            }
+        }
+
+        let digit_start = end;
+        for (relative, ch) in self.input[digit_start..].char_indices() {
+            if !ch.is_ascii_digit() {
+                break;
+            }
+            end = digit_start + relative + ch.len_utf8();
+        }
+
+        if end == digit_start {
+            return Err(());
+        }
+        let raw = &self.input[self.offset..end];
+        self.offset = end;
+        raw.parse::<i64>().map_err(|_| ())
+    }
+
     fn consume_char(&mut self, expected: char) -> Result<(), ()> {
         if self.peek_char() != Some(expected) {
             return Err(());
@@ -719,6 +905,10 @@ fn encode_catalog_record(table: &str, columns: &[Column]) -> Vec<u8> {
         write_string_u16(&mut record, &column.name);
         record.push(column.column_type.to_byte());
     }
+    if let Some(primary_key_column) = columns.iter().position(|column| column.is_primary_key) {
+        record.push(b'P');
+        write_u16(&mut record, primary_key_column as u16);
+    }
     record
 }
 
@@ -754,7 +944,22 @@ fn decode_record(record: &[u8]) -> Result<LogicalRecord, SqlError> {
                 let name = reader.read_string_u16()?;
                 let column_type = ColumnType::from_byte(reader.read_u8()?)
                     .ok_or(SqlError::InvalidStorageRecord)?;
-                columns.push(Column { name, column_type });
+                columns.push(Column {
+                    name,
+                    column_type,
+                    is_primary_key: false,
+                });
+            }
+            if !reader.is_finished() {
+                let extension = reader.read_u8()?;
+                if extension != b'P' {
+                    return Err(SqlError::InvalidStorageRecord);
+                }
+                let primary_key_column = reader.read_u16()? as usize;
+                let Some(column) = columns.get_mut(primary_key_column) else {
+                    return Err(SqlError::InvalidStorageRecord);
+                };
+                column.is_primary_key = true;
             }
             reader.finish()?;
             Ok(LogicalRecord::Catalog { table, columns })
@@ -859,5 +1064,9 @@ impl<'a> RecordReader<'a> {
         (self.offset == self.record.len())
             .then_some(())
             .ok_or(SqlError::InvalidStorageRecord)
+    }
+
+    fn is_finished(&self) -> bool {
+        self.offset == self.record.len()
     }
 }

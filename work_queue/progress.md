@@ -2,7 +2,7 @@
 
 ## Current State
 
-`persistent-db-core` now has the V1 CLI smoke contract, durable page storage, and the minimal SQL schema/execute path for `CREATE TABLE`, `INSERT INTO ... VALUES`, and `SELECT * FROM ...`. The next smallest implementation handoff should target indexing, recovery, or validation gaps on top of the SQL execution baseline.
+`persistent-db-core` now has the V1 CLI smoke contract, durable page storage, the minimal SQL schema/execute path, and primary-key indexed lookup/ordered scan proof for `db exec`. The next smallest implementation handoff should target secondary indexes, recovery, or validation gaps on top of the SQL execution baseline.
 
 ## Gap Snapshot
 
@@ -11,7 +11,7 @@
 | gap-v1-bootstrap-cli-contract | missing_evidence | CLI skeleton exists, but the first CAO handoff should formalize the V1 command contract and smoke coverage. |
 | gap-v1-page-storage-record-format | missing_evidence | No page storage or record format implementation yet. |
 | gap-v1-sql-parser-schema-exec | verification_ready | `db exec <path> <sql>` implements the documented minimal SQL subset with deterministic tests, persistence coverage, and durable docs. |
-| gap-v1-primary-btree-index | missing_evidence | No primary B-tree index yet. |
+| gap-v1-primary-btree-index | verification_ready | Primary-key tables rebuild an in-memory B-tree index from durable row records, support exact lookup, scan in primary-key order, and preserve row-only table compatibility. |
 | gap-v1-secondary-index-range-scan | missing_evidence | No secondary index support yet. |
 | gap-v1-transaction-wal-recovery | missing_evidence | No transaction or WAL recovery path yet. |
 | gap-v1-deterministic-crash-matrix | missing_evidence | No deterministic crash matrix yet. |
@@ -21,4 +21,5 @@
 
 ## Recent Entries
 
+- 2026-05-17: Added primary-key indexed query evidence for `db exec`: single `INT PRIMARY KEY` declarations, duplicate-key rejection, exact lookup, primary-key ordered scans, reopen/rebuild coverage, row-only compatibility, and primary-index persistence docs.
 - 2026-05-17: Implemented the minimal SQL schema/execute path for `db exec <path> <sql>`, including parser/executor, SQL logical records over `PageStore`, exact CLI error contracts, restart and mid-command failure coverage, and SQL/file-format docs.

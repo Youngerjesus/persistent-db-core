@@ -1,7 +1,7 @@
 # V1 `db` CLI Contract
 
 This slice defines the deterministic command-line contract for the `db` binary,
-including the minimal SQL execution path.
+including the minimal SQL execution path and primary-key lookup path.
 
 ## Supported Commands
 
@@ -63,11 +63,15 @@ hint: run 'db --help' for the supported V1 CLI contract.
 
 ## SQL Execution
 
-Successful `db exec` writes no stderr. It writes stdout only for `SELECT * FROM`
-statements. Each result set prints the stored column header followed by rows in
-successful `INSERT` append order, with `|` as the field delimiter and `\n` after
-every output line. Multiple `SELECT` statements repeat the header with no blank
-line, separator, or count line.
+Successful `db exec` writes no stderr. It writes stdout only for supported
+`SELECT *` statements. Each result set prints the stored column header followed
+by rows, with `|` as the field delimiter and `\n` after every output line.
+Tables without a primary key scan in successful `INSERT` append order. Tables
+declared with one `INT PRIMARY KEY` scan in ascending primary-key order.
+`SELECT * FROM <table> WHERE <primary_key> = <int>;` performs exact primary-key
+lookup and prints only the matching row, or only the header when the key is
+missing. Multiple `SELECT` statements repeat the header with no blank line,
+separator, or count line.
 
 The supported SQL subset is documented in `docs/sql_subset.md`.
 
@@ -75,7 +79,7 @@ Unsupported SQL exits `2`, writes empty stdout, and uses this stderr:
 
 ```text
 error: unsupported SQL statement: SELECT id FROM users;
-hint: supported SQL subset: CREATE TABLE, INSERT INTO ... VALUES, SELECT * FROM ...;
+hint: supported SQL subset: CREATE TABLE, INSERT INTO ... VALUES, SELECT * FROM ..., SELECT * FROM ... WHERE <primary_key> = <int>;
 ```
 
 Malformed SQL exits `2`, writes empty stdout, and uses this stderr:
@@ -118,6 +122,16 @@ error: SQL semantic error: type mismatch for column id: expected INT, got TEXT
 hint: INSERT values must match the declared column types.
 ```
 
+```text
+error: SQL semantic error: duplicate primary key for table users: 2
+hint: primary key values must be unique.
+```
+
+```text
+error: SQL semantic error: primary key column must be INT: id
+hint: this SQL slice supports one INT PRIMARY KEY column per table.
+```
+
 Invalid SQL logical records exit `1`, write empty stdout, and use this stderr:
 
 ```text
@@ -139,6 +153,10 @@ Invoking any reserved command currently follows the unsupported input behavior.
 
 ## Non-Goals
 
-This slice does not implement projection, `WHERE`, `ORDER BY`, `JOIN`,
-`UPDATE`, `DELETE`, transactions, WAL, recovery, indexes, networking,
-multi-process concurrency, or distributed storage.
+This slice does not implement projection, general `WHERE`, `ORDER BY`, `JOIN`,
+`UPDATE`, `DELETE`, transactions, WAL, recovery, secondary indexes, networking,
+multi-process concurrency, or distributed storage. Primary indexes are rebuilt
+from durable SQL row records on open; there is no separate persisted index
+metadata, so existing row-only SQL files remain compatible and missing index
+metadata is not a failure mode. Corrupt SQL row records, including duplicate
+persisted primary-key values, fail with the invalid SQL storage record error.
