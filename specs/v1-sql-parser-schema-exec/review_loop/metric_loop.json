@@ -1,0 +1,271 @@
+{
+  "max_rounds": 3,
+  "max_repair_attempts": 2,
+  "threshold": 2,
+  "rounds": [
+    {
+      "round": 1,
+      "metrics": {
+        "objective_plan_gap_fit": {
+          "score": 3,
+          "rationale": "Candidate maps to both an objective metric and a current-plan gap.",
+          "evidence": [
+            "metric:metric-v1-query-correctness",
+            "gap:gap-v1-sql-parser-schema-exec"
+          ]
+        },
+        "causal_evidence_strength": {
+          "score": 3,
+          "rationale": "Candidate has concrete evidence for the proposed intervention.",
+          "evidence": [
+            "Current Artifact: `gate-v1-sql-schema-exec`는 open이고 `req-v1-sql-exec-examples`가 missing requirement입니다.",
+            "Current Plan: `gap-v1-sql-parser-schema-exec`의 next candidate hint는 최소 `CREATE TABLE`, `INSERT`, `SELECT` path를 storage 위에 구현하는 것입니다.",
+            "Root Progress Projection: `gate-v1-cli-smoke`와 `gate-v1-disk-page-storage`는 `projected_complete`라 오늘 후보에서 제외됩니다.",
+            "Root Progress Projection: `gate-v1-sql-schema-exec`는 `status=open`, `missing_requirement_ids=[req-v1-sql-exec-examples]`입니다.",
+            "Queue Snapshot: active 또는 reserved task가 없어 동일 feature 중복 실행 근거가 없습니다.",
+            "Managed Repo Snapshot: repo git status가 clean이고, V1 Rust CLI database boundary가 active managed repo로 고정되어 있습니다.",
+            "persistent-db-core_worktree/main/src/main.rs",
+            "persistent-db-core_worktree/main/src/lib.rs",
+            "persistent-db-core_worktree/main/src/storage.rs",
+            "persistent-db-core_worktree/main/tests/cli_contract.rs",
+            "persistent-db-core_worktree/main/tests/page_storage.rs",
+            "persistent-db-core_worktree/main/docs/cli_contract.md",
+            "persistent-db-core_worktree/main/docs/file_format.md",
+            "persistent-db-core_worktree/main/docs/v1_spec.md",
+            "persistent-db-core_worktree/main/work_queue/progress.md",
+            "autopilot/ssot/current-artifact.md",
+            "autopilot/project_manager/tasks/tasks.json",
+            "HELP",
+            "main",
+            "PageStore",
+            "PageStore::open",
+            "PageStore::append_record",
+            "PageStore::read_records",
+            "StorageError",
+            "autopilot/project_manager/tasks/tasks.json#task-2026-05-15-16-06-54-v1-bootstrap-cli-contract",
+            "autopilot/project_manager/tasks/tasks.json#task-2026-05-16-13-58-47-v1-page-storage-record-format",
+            "autopilot/project_manager/specs/v1-bootstrap-cli-contract/spec.md",
+            "autopilot/project_manager/specs/v1-bootstrap-cli-contract/contracts.md",
+            "autopilot/project_manager/specs/v1-page-storage-record-format/spec.md",
+            "autopilot/project_manager/specs/v1-page-storage-record-format/contracts.md"
+          ]
+        },
+        "handoff_verifiability": {
+          "score": 3,
+          "rationale": "Expected delta and acceptance proof are explicit.",
+          "evidence": [
+            "`db`가 문서화된 최소 SQL subset으로 `CREATE TABLE`, `INSERT`, `SELECT`를 실행하며 기존 CLI help/exit contract를 깨지 않습니다.",
+            "지원 SQL 예시는 입력 statement와 expected deterministic row output을 테스트로 검증합니다.",
+            "schema/catalog와 row data는 기존 page storage primitive를 사용하며 process restart 후 `SELECT` 결과가 유지됩니다.",
+            "unsupported SQL 또는 malformed statement는 panic 없이 안정적인 non-zero exit와 문서화된 오류 형식으로 처리됩니다.",
+            "검증 명령은 managed repo baseline `scripts/verify`와 SQL 전용 테스트, 그리고 관련 `cargo run --bin db -- ...` smoke command를 포함합니다."
+          ]
+        }
+      },
+      "low_metrics": [],
+      "constraint_blockers": [],
+      "artifact_mapping": {
+        "source": "inferred_current_plan_gap",
+        "blocker": "",
+        "blocker_reason": "",
+        "resolved_requirement_ids": [
+          "req-v1-sql-exec-examples"
+        ],
+        "resolved_gates": [
+          "gate-v1-sql-schema-exec"
+        ],
+        "explicit": {
+          "requirement_ids": [],
+          "launch_gates": [],
+          "valid_requirement_ids": [],
+          "valid_launch_gates": [],
+          "unknown_requirement_ids": [],
+          "unknown_launch_gates": [],
+          "resolved_requirement_ids": [],
+          "resolved_gates": [],
+          "present": false
+        },
+        "inferred": {
+          "current_plan_gap_id": "gap-v1-sql-parser-schema-exec",
+          "launch_gates": [
+            "gate-v1-sql-schema-exec"
+          ],
+          "requirement_ids": [
+            "req-v1-sql-exec-examples"
+          ],
+          "valid": true
+        },
+        "artifact_contract": {
+          "requirement_ids": [
+            "req-v1-acceptance-docs",
+            "req-v1-benchmark-lower-bounds",
+            "req-v1-cli-dispatch-tests",
+            "req-v1-cli-help-smoke",
+            "req-v1-crash-matrix-output",
+            "req-v1-db-check-proof",
+            "req-v1-differential-property-proof",
+            "req-v1-page-storage-restart",
+            "req-v1-primary-index-proof",
+            "req-v1-record-format-doc",
+            "req-v1-secondary-index-proof",
+            "req-v1-sql-exec-examples",
+            "req-v1-wal-recovery-proof"
+          ],
+          "launch_gates": [
+            "gate-v1-bench-docs-acceptance",
+            "gate-v1-cli-smoke",
+            "gate-v1-crash-testing",
+            "gate-v1-db-check-invariants",
+            "gate-v1-differential-property-tests",
+            "gate-v1-disk-page-storage",
+            "gate-v1-indexes",
+            "gate-v1-sql-schema-exec",
+            "gate-v1-transactions-wal-recovery"
+          ]
+        }
+      },
+      "feedback": [],
+      "repair": {
+        "attempted": false,
+        "changed": false,
+        "changes": [],
+        "summary": "No repair needed."
+      }
+    }
+  ],
+  "final_metrics": {
+    "objective_plan_gap_fit": {
+      "score": 3,
+      "rationale": "Candidate maps to both an objective metric and a current-plan gap.",
+      "evidence": [
+        "metric:metric-v1-query-correctness",
+        "gap:gap-v1-sql-parser-schema-exec"
+      ]
+    },
+    "causal_evidence_strength": {
+      "score": 3,
+      "rationale": "Candidate has concrete evidence for the proposed intervention.",
+      "evidence": [
+        "Current Artifact: `gate-v1-sql-schema-exec`는 open이고 `req-v1-sql-exec-examples`가 missing requirement입니다.",
+        "Current Plan: `gap-v1-sql-parser-schema-exec`의 next candidate hint는 최소 `CREATE TABLE`, `INSERT`, `SELECT` path를 storage 위에 구현하는 것입니다.",
+        "Root Progress Projection: `gate-v1-cli-smoke`와 `gate-v1-disk-page-storage`는 `projected_complete`라 오늘 후보에서 제외됩니다.",
+        "Root Progress Projection: `gate-v1-sql-schema-exec`는 `status=open`, `missing_requirement_ids=[req-v1-sql-exec-examples]`입니다.",
+        "Queue Snapshot: active 또는 reserved task가 없어 동일 feature 중복 실행 근거가 없습니다.",
+        "Managed Repo Snapshot: repo git status가 clean이고, V1 Rust CLI database boundary가 active managed repo로 고정되어 있습니다.",
+        "persistent-db-core_worktree/main/src/main.rs",
+        "persistent-db-core_worktree/main/src/lib.rs",
+        "persistent-db-core_worktree/main/src/storage.rs",
+        "persistent-db-core_worktree/main/tests/cli_contract.rs",
+        "persistent-db-core_worktree/main/tests/page_storage.rs",
+        "persistent-db-core_worktree/main/docs/cli_contract.md",
+        "persistent-db-core_worktree/main/docs/file_format.md",
+        "persistent-db-core_worktree/main/docs/v1_spec.md",
+        "persistent-db-core_worktree/main/work_queue/progress.md",
+        "autopilot/ssot/current-artifact.md",
+        "autopilot/project_manager/tasks/tasks.json",
+        "HELP",
+        "main",
+        "PageStore",
+        "PageStore::open",
+        "PageStore::append_record",
+        "PageStore::read_records",
+        "StorageError",
+        "autopilot/project_manager/tasks/tasks.json#task-2026-05-15-16-06-54-v1-bootstrap-cli-contract",
+        "autopilot/project_manager/tasks/tasks.json#task-2026-05-16-13-58-47-v1-page-storage-record-format",
+        "autopilot/project_manager/specs/v1-bootstrap-cli-contract/spec.md",
+        "autopilot/project_manager/specs/v1-bootstrap-cli-contract/contracts.md",
+        "autopilot/project_manager/specs/v1-page-storage-record-format/spec.md",
+        "autopilot/project_manager/specs/v1-page-storage-record-format/contracts.md"
+      ]
+    },
+    "handoff_verifiability": {
+      "score": 3,
+      "rationale": "Expected delta and acceptance proof are explicit.",
+      "evidence": [
+        "`db`가 문서화된 최소 SQL subset으로 `CREATE TABLE`, `INSERT`, `SELECT`를 실행하며 기존 CLI help/exit contract를 깨지 않습니다.",
+        "지원 SQL 예시는 입력 statement와 expected deterministic row output을 테스트로 검증합니다.",
+        "schema/catalog와 row data는 기존 page storage primitive를 사용하며 process restart 후 `SELECT` 결과가 유지됩니다.",
+        "unsupported SQL 또는 malformed statement는 panic 없이 안정적인 non-zero exit와 문서화된 오류 형식으로 처리됩니다.",
+        "검증 명령은 managed repo baseline `scripts/verify`와 SQL 전용 테스트, 그리고 관련 `cargo run --bin db -- ...` smoke command를 포함합니다."
+      ]
+    }
+  },
+  "low_metrics": [],
+  "constraint_blockers": [],
+  "artifact_mapping": {
+    "source": "inferred_current_plan_gap",
+    "blocker": "",
+    "blocker_reason": "",
+    "resolved_requirement_ids": [
+      "req-v1-sql-exec-examples"
+    ],
+    "resolved_gates": [
+      "gate-v1-sql-schema-exec"
+    ],
+    "explicit": {
+      "requirement_ids": [],
+      "launch_gates": [],
+      "valid_requirement_ids": [],
+      "valid_launch_gates": [],
+      "unknown_requirement_ids": [],
+      "unknown_launch_gates": [],
+      "resolved_requirement_ids": [],
+      "resolved_gates": [],
+      "present": false
+    },
+    "inferred": {
+      "current_plan_gap_id": "gap-v1-sql-parser-schema-exec",
+      "launch_gates": [
+        "gate-v1-sql-schema-exec"
+      ],
+      "requirement_ids": [
+        "req-v1-sql-exec-examples"
+      ],
+      "valid": true
+    },
+    "artifact_contract": {
+      "requirement_ids": [
+        "req-v1-acceptance-docs",
+        "req-v1-benchmark-lower-bounds",
+        "req-v1-cli-dispatch-tests",
+        "req-v1-cli-help-smoke",
+        "req-v1-crash-matrix-output",
+        "req-v1-db-check-proof",
+        "req-v1-differential-property-proof",
+        "req-v1-page-storage-restart",
+        "req-v1-primary-index-proof",
+        "req-v1-record-format-doc",
+        "req-v1-secondary-index-proof",
+        "req-v1-sql-exec-examples",
+        "req-v1-wal-recovery-proof"
+      ],
+      "launch_gates": [
+        "gate-v1-bench-docs-acceptance",
+        "gate-v1-cli-smoke",
+        "gate-v1-crash-testing",
+        "gate-v1-db-check-invariants",
+        "gate-v1-differential-property-tests",
+        "gate-v1-disk-page-storage",
+        "gate-v1-indexes",
+        "gate-v1-sql-schema-exec",
+        "gate-v1-transactions-wal-recovery"
+      ]
+    }
+  },
+  "repair_attempts": 0,
+  "final_disposition": "ready_for_handoff",
+  "evidence_gap_type": "",
+  "confidence_gap_reason": "",
+  "research_question": "",
+  "hypothesis_lineage": {
+    "objective_metric_id": "metric-v1-query-correctness",
+    "current_plan_gap_id": "gap-v1-sql-parser-schema-exec",
+    "target_boundary": "managed_repo"
+  },
+  "repairability": {
+    "repairable": false,
+    "reason": "already_ready",
+    "allowed_findings": [],
+    "blocked_findings": []
+  }
+}

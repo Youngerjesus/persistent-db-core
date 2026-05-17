@@ -35,10 +35,24 @@ Each data page stores opaque byte records in append order.
 
 Records are encoded as `u32 little-endian length` followed by exactly that many payload bytes. Payloads are opaque bytes; empty payloads, UTF-8 text, and arbitrary binary bytes are all valid. A single record must fit in one data page after the 16-byte page header and 4-byte length prefix. Overflow pages are not part of V1.
 
+## SQL Logical Records
+
+The SQL executor does not change the page header, data page header, or opaque
+record framing. SQL catalog and row data live above `PageStore` as opaque record
+payloads documented in `docs/sql_subset.md`.
+
+SQL payloads are UTF-8 compatible and start with the prefix `PDBSQL1\0`.
+The byte after the prefix is the SQL logical record kind: `C` for catalog and
+`R` for row. Catalog records include table name and ordered column metadata.
+Row records include table name and ordered typed values. Arbitrary records
+without the SQL prefix are valid page-storage payloads, but they are not valid
+SQL database records and are rejected by `db exec` with the documented invalid
+SQL storage record error.
+
 ## Validation Errors
 
 Opening or reading a file validates the header and every declared data page. Short files return a truncated-file error. Non-page-aligned files or missing declared pages return a truncated-page error. Invalid file or data page magic returns an invalid-magic error. Unsupported format versions return an unsupported-version error. Record lengths that exceed the page used bytes or page capacity return a corrupt-record-length error. Oversized appends return a record-too-large error.
 
 ## Compatibility Note
 
-V1 is pre-launch and does not guarantee backward compatibility for existing user data. After this page and record format is introduced, format changes must not be made implicitly: the documentation and deterministic tests must be updated together with any intentional format change.
+V1 is pre-launch and does not guarantee backward compatibility for existing user data. After this page and record format is introduced, format changes must not be made implicitly: the documentation and deterministic tests must be updated together with any intentional format change. SQL logical-record evolution must preserve the lower-level page framing unless a future task explicitly changes the page format contract.
