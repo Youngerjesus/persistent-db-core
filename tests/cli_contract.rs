@@ -6,12 +6,13 @@ const REQUIRED_HELP_LINES: &[&str] = &[
     "  db --help",
     "  db help",
     "  db exec <path> <sql>",
+    "  db check <path>",
     "Supported commands:",
     "  help        Print this help text.",
     "  exec <path> <sql>",
+    "  check <path>",
     "Reserved future commands:",
     "  open <path>",
-    "  check <path>",
     "  bench <path>",
     "V1 scope:",
     "  This build supports the CLI contract, page storage, and the documented minimal SQL subset.",
@@ -95,6 +96,18 @@ fn reserved_future_command_remains_unsupported() {
 }
 
 #[test]
+fn bench_reserved_future_command_remains_unsupported() {
+    let output = db(&["bench", "demo.db"]);
+
+    assert_eq!(Some(2), output.status.code());
+    assert_eq!("", stdout(&output), "unsupported stdout must be empty");
+    assert_eq!(
+        "error: unsupported argument or command: bench\nhint: run 'db --help' for the supported V1 CLI contract.\n",
+        stderr(&output)
+    );
+}
+
+#[test]
 fn exec_requires_path_and_single_sql_argument() {
     let output = db(&["exec", "demo.db"]);
 
@@ -102,6 +115,18 @@ fn exec_requires_path_and_single_sql_argument() {
     assert_eq!("", stdout(&output), "unsupported stdout must be empty");
     assert_eq!(
         "error: unsupported argument or command: exec\nhint: run 'db --help' for the supported V1 CLI contract.\n",
+        stderr(&output)
+    );
+}
+
+#[test]
+fn check_requires_path_argument() {
+    let output = db(&["check"]);
+
+    assert_eq!(Some(2), output.status.code());
+    assert_eq!("", stdout(&output), "unsupported stdout must be empty");
+    assert_eq!(
+        "error: unsupported argument or command: check\nhint: run 'db --help' for the supported V1 CLI contract.\n",
         stderr(&output)
     );
 }

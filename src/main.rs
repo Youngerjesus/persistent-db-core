@@ -1,6 +1,7 @@
 use std::env;
 use std::process;
 
+use persistent_db_core::check::{self, CheckError};
 use persistent_db_core::sql::{self, SqlError};
 
 const HELP: &str = "\
@@ -9,12 +10,13 @@ Usage:
   db --help
   db help
   db exec <path> <sql>
+  db check <path>
 Supported commands:
   help        Print this help text.
   exec <path> <sql>
+  check <path>
 Reserved future commands:
   open <path>
-  check <path>
   bench <path>
 V1 scope:
   This build supports the CLI contract, page storage, and the documented minimal SQL subset.
@@ -35,6 +37,12 @@ fn main() {
             }
             Err(error) => exit_with_sql_error(error),
         },
+        [command, path] if command == "check" => match check::check_database(path) {
+            Ok(()) => {
+                print!("{}", check::SUCCESS_OUTPUT);
+            }
+            Err(error) => exit_with_check_error(error),
+        },
         [token, ..] => {
             eprintln!("error: unsupported argument or command: {token}");
             eprintln!("hint: run 'db --help' for the supported V1 CLI contract.");
@@ -44,6 +52,22 @@ fn main() {
             eprintln!("error: unsupported argument or command: <none>");
             eprintln!("hint: run 'db --help' for the supported V1 CLI contract.");
             process::exit(2);
+        }
+    }
+}
+
+fn exit_with_check_error(error: CheckError) -> ! {
+    match error {
+        CheckError::OpenRead { path } => {
+            eprintln!(
+                "error: could not open or read database path: {}",
+                path.display()
+            );
+            process::exit(1);
+        }
+        CheckError::Invariant { label } => {
+            eprintln!("error: db check failed: {label}");
+            process::exit(1);
         }
     }
 }

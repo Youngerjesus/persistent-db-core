@@ -1,7 +1,8 @@
 # V1 `db` CLI Contract
 
 This slice defines the deterministic command-line contract for the `db` binary,
-including the minimal SQL execution path and primary-key lookup path.
+including the minimal SQL execution path, primary-key lookup path, and database
+check path.
 
 ## Supported Commands
 
@@ -11,6 +12,7 @@ The supported command surface is intentionally small:
 db --help
 db help
 db exec <path> <sql>
+db check <path>
 ```
 
 `db --help` and `db help` exit with code `0`, write no stderr, and write
@@ -19,6 +21,10 @@ identical help text to stdout.
 `db exec <path> <sql>` executes one SQL argument against the database file at
 `<path>`. The file is created if it does not exist. SQL from stdin, interactive
 shell input, and multiple SQL argv fragments are not supported.
+
+`db check <path>` validates an existing database file and WAL sidecar without
+repairing or mutating them. The file must already exist and must be a regular
+file.
 
 ## Help Stdout
 
@@ -30,12 +36,13 @@ Usage:
   db --help
   db help
   db exec <path> <sql>
+  db check <path>
 Supported commands:
   help        Print this help text.
   exec <path> <sql>
+  check <path>
 Reserved future commands:
   open <path>
-  check <path>
   bench <path>
 V1 scope:
   This build supports the CLI contract, page storage, and the documented minimal SQL subset.
@@ -45,8 +52,10 @@ Non-goals:
 
 ## Exit Codes
 
-- `0`: help printed successfully, or `db exec` completed successfully.
-- `1`: storage or SQL logical-record data is invalid for this contract.
+- `0`: help printed successfully, `db exec` completed successfully, or
+  `db check` passed.
+- `1`: storage, SQL logical-record data, or `db check` invariants are invalid
+  for this contract. `db check` open/read failures also use exit code `1`.
 - `2`: the first argument was unsupported, or no supported command was provided.
   SQL syntax, unsupported SQL, and SQL semantic errors also use exit code `2`.
 
@@ -75,8 +84,8 @@ separator, or count line.
 
 Successful `CREATE TABLE` and `INSERT` mutations are durable across later
 `db exec` process starts for the same database path. WAL sidecar details are
-documented in `docs/file_format.md`; they do not add public CLI commands or
-change successful stdout, stderr, or exit codes.
+documented in `docs/file_format.md`; they do not change successful `db exec`
+stdout, stderr, or exit codes.
 
 The supported SQL subset is documented in `docs/sql_subset.md`.
 
@@ -144,13 +153,43 @@ error: invalid SQL storage record: unknown record tag
 hint: run against a database file created by this SQL contract or restore from a valid backup.
 ```
 
+## Database Check
+
+Successful `db check <path>` exits `0`, writes no stderr, and writes exactly:
+
+```text
+ok: db check passed
+```
+
+The trailing newline is part of the contract.
+
+`db check` performs a read-only validation of page-record readability, SQL
+catalog/row consistency, primary-key rebuildability, and the documented WAL
+sidecar ordering rule. It does not repair files, create missing files, replay
+WAL frames into the page file, or checkpoint retained complete WAL frames.
+
+Invariant failures exit `1`, write empty stdout, and use this stderr prefix:
+
+```text
+error: db check failed: <invariant label>
+```
+
+Documented invariant labels include `storage record readability`,
+`catalog/record invariant`, `primary index`, and `wal replay consistency`.
+
+Missing paths, directories, and paths that cannot be opened or read exit `1`,
+write empty stdout, and use this stderr shape with path context:
+
+```text
+error: could not open or read database path: <path>
+```
+
 ## Reserved Future Commands
 
 The following names are reserved for later V1 work but are not executable in this slice:
 
 ```text
 open <path>
-check <path>
 bench <path>
 ```
 

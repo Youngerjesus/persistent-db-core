@@ -16,3 +16,4 @@
 - Added the minimal WAL recovery milestone: committed `db exec` mutations are replay-safe across reopen, incomplete trailing WAL entries are excluded, and the retained sidecar format is documented.
 - Reverified the WAL recovery milestone at the current task SHA with separate committed, rolled-back/uncommitted, incomplete-tail, CLI smoke, and retained sidecar evidence.
 - Added deterministic WAL crash matrix coverage for pre-append, partial-frame, uncommitted, committed replay, interrupted recovery, and corrupt-tail boundaries.
+- Added the `db check` invariant milestone: existing database files can now be validated for page readability, SQL catalog/row consistency, primary-index rebuildability, WAL replay consistency, and stable open/read error behavior.
