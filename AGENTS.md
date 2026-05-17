@@ -18,6 +18,9 @@ Build a small, deterministic Rust CLI database binary named `db`. V1 should grow
 ## Engineering Rules
 
 - Keep changes scoped to the active task and its spec package.
+- Keep hand-written implementation files small and cohesive. As a default pressure, avoid letting a single source file grow beyond roughly 220 lines.
+- When a file exceeds that size, split it along a real ownership boundary or document why keeping it together is simpler and safer.
+- Do not split files merely to satisfy a line count. Prefer modules that reflect stable product or data boundaries, with one-way dependencies and focused tests.
 - Prefer deterministic behavior, deterministic tests, and explicit persisted-data fixtures over implicit state.
 - Treat persisted data compatibility, CLI output, exit codes, and documented error behavior as stable contracts once introduced.
 - Make failure modes explicit. Avoid panics for user-facing CLI errors and persisted-data handling unless the invariant violation is unrecoverable programmer error.
