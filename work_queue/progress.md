@@ -2,7 +2,7 @@
 
 ## Current State
 
-`persistent-db-core` now has the V1 CLI smoke contract, durable page storage, the minimal SQL schema/execute path, primary-key indexed lookup/ordered scan proof, current-SHA transaction WAL replay evidence for `db exec`, deterministic crash matrix coverage for WAL recovery boundaries, `db check` invariant validation for existing database files, and SQLite-backed differential/property evidence for the supported SQL subset. The next smallest implementation handoff should target secondary indexes or benchmark/acceptance docs on top of the SQL execution, recovery, check, and differential baselines.
+`persistent-db-core` now has the V1 CLI smoke contract, durable page storage, the minimal SQL schema/execute path, primary-key indexed lookup/ordered scan proof, current-SHA transaction WAL replay evidence for `db exec`, deterministic crash matrix coverage for WAL recovery boundaries, `db check` invariant validation for existing database files, SQLite-backed differential/property evidence for the supported SQL subset, and repo-local benchmark/acceptance documentation evidence. The next smallest implementation handoff should target secondary indexes or a narrower acceptance blocker on top of the SQL execution, recovery, check, differential, and benchmark baselines.
 
 ## Gap Snapshot
 
@@ -17,10 +17,11 @@
 | gap-v1-deterministic-crash-matrix | verification_ready | Deterministic crash matrix covers pre-WAL append, partial WAL frame, uncommitted frame, committed replay idempotence, interrupted recovery retry, and corrupt tail cleanup evidence. |
 | gap-v1-differential-property-tests | verification_ready | SQLite-backed deterministic differential/property tests cover supported SQL subset generation, duplicate-key errors, missing lookups, ordered scans, seed replay, and failure artifact reporting. |
 | gap-v1-db-check-invariants | verification_ready | `db check <path>` validates existing page records, SQL catalog/row invariants, primary-key rebuildability, WAL sidecar ordering, missing paths, and directory-path open/read errors. |
-| gap-v1-bench-docs-acceptance | missing_evidence | No benchmark lower-bound evidence or V1 acceptance docs yet. |
+| gap-v1-bench-docs-acceptance | verification_ready | `scripts/verify_bench_acceptance` records deterministic lower-bound JSON evidence, and `docs/v1_acceptance.md` maps launch gates to current evidence and explicit blockers. |
 
 ## Recent Entries
 
+- 2026-05-18: Added repo-local benchmark acceptance evidence with `scripts/verify_bench_acceptance`, documented lower-bound policy in `docs/benchmarks.md`, and mapped V1 launch gates in `docs/v1_acceptance.md` with explicit missing-evidence blockers.
 - 2026-05-18: Added SQLite-backed deterministic differential/property evidence for the supported SQL subset, including seed replay, duplicate-key and missing-lookup coverage, ordered scan comparison, local failure artifact reporting, and `scripts/verify_differential_property`.
 - 2026-05-18: Added `db check <path>` invariant validation with exact success/failure CLI contracts, deterministic corrupted fixtures for storage, catalog/record, primary-index, and WAL replay consistency failures, plus focused `cargo test --test db_check` coverage.
 - 2026-05-18: Added deterministic WAL crash matrix evidence for six recovery boundaries, including partial/corrupt tails, uncommitted frame exclusion, committed replay idempotence, and interrupted recovery retry with `scripts/verify_crash_matrix`.

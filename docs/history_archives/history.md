@@ -18,3 +18,4 @@
 - Added deterministic WAL crash matrix coverage for pre-append, partial-frame, uncommitted, committed replay, interrupted recovery, and corrupt-tail boundaries.
 - Added the `db check` invariant milestone: existing database files can now be validated for page readability, SQL catalog/row consistency, primary-index rebuildability, WAL replay consistency, and stable open/read error behavior.
 - Added SQLite-backed differential/property coverage for the supported SQL subset with deterministic seed replay, duplicate-key and missing-lookup checks, ordered scan comparison, and task-specific verification.
+- Added the V1 benchmark and acceptance documentation milestone: `scripts/verify_bench_acceptance` records deterministic lower-bound evidence, and the V1 acceptance guide maps launch gates to evidence and explicit blockers.
