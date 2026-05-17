@@ -1,0 +1,275 @@
+{
+  "max_rounds": 3,
+  "max_repair_attempts": 2,
+  "threshold": 2,
+  "rounds": [
+    {
+      "round": 1,
+      "metrics": {
+        "objective_plan_gap_fit": {
+          "score": 3,
+          "rationale": "Candidate maps to both an objective metric and a current-plan gap.",
+          "evidence": [
+            "metric:metric-v1-acceptance-evidence",
+            "gap:gap-v1-differential-property-tests"
+          ]
+        },
+        "causal_evidence_strength": {
+          "score": 3,
+          "rationale": "Candidate has concrete evidence for the proposed intervention.",
+          "evidence": [
+            "Root Progress Projection: `artifact_status=open`, open requirement에 `req-v1-differential-property-proof`가 포함되어 있습니다.",
+            "Root Progress Projection: `gate-v1-differential-property-tests`는 `status=open`, blocker는 `missing satisfied requirement rows`입니다.",
+            "Current Plan: `gap-v1-differential-property-tests`는 `metric-v1-acceptance-evidence`와 `gate-v1-differential-property-tests`에 매핑됩니다.",
+            "Current Artifact: `req-v1-differential-property-proof`는 deterministic seed capture가 있는 SQLite differential/property test evidence를 요구합니다.",
+            "Managed repo progress: `gap-v1-differential-property-tests`는 `missing_evidence`이며 SQLite differential/property harness가 아직 없습니다.",
+            "Queue Snapshot: active 또는 reserved task가 없습니다.",
+            "Cargo.toml",
+            "src/sql.rs",
+            "src/main.rs",
+            "src/lib.rs",
+            "tests/sql_exec.rs",
+            "tests/primary_index.rs",
+            "tests/wal_recovery.rs",
+            "tests/crash_matrix.rs",
+            "tests/db_check.rs",
+            "docs/cli_contract.md",
+            "docs/sql_subset.md",
+            "docs/v1_spec.md",
+            "work_queue/progress.md",
+            "sql::execute",
+            "sql::execute_select",
+            "sql::execute_select_primary_key",
+            "sql::parse_statements",
+            "main::main",
+            "autopilot/project_manager/tasks/tasks.json: no task with current_plan_gap_id gap-v1-differential-property-tests found by bounded search",
+            "task-2026-05-17-19-38-21-v1-sql-parser-schema-exec",
+            "task-2026-05-17-22-43-31-v1-primary-btree-index",
+            "task-2026-05-17-23-45-17-v1-transaction-wal-recovery",
+            "task-2026-05-18-02-23-10-v1-deterministic-crash-matrix",
+            "task-2026-05-18-03-29-23-v1-db-check-invariants",
+            "autopilot/project_manager/specs: no v1-differential-property-tests package present",
+            "persistent-db-core_worktree/main/specs: no v1-differential-property-tests package tracked"
+          ]
+        },
+        "handoff_verifiability": {
+          "score": 3,
+          "rationale": "Expected delta and acceptance proof are explicit.",
+          "evidence": [
+            "`cargo test --test differential_property` 또는 동등한 task-specific test command가 deterministic seed로 지원 SQL operation sequence를 실행합니다.",
+            "생성 시퀀스는 현재 지원되는 `CREATE TABLE`, `INSERT`, `SELECT *`, primary-key lookup 또는 ordered scan semantics를 포함하고 expected row ordering을 검증합니다.",
+            "실패 시 seed와 최소 재현 가능한 operation sequence가 test output 또는 generated evidence artifact에 남습니다.",
+            "`./scripts/verify`가 기존 fmt, clippy, full test, help smoke baseline을 계속 통과합니다.",
+            "최종 evidence가 `gate-v1-differential-property-tests`와 `req-v1-differential-property-proof`에 명시적으로 매핑됩니다."
+          ]
+        }
+      },
+      "low_metrics": [],
+      "constraint_blockers": [],
+      "artifact_mapping": {
+        "source": "inferred_current_plan_gap",
+        "blocker": "",
+        "blocker_reason": "",
+        "resolved_requirement_ids": [
+          "req-v1-differential-property-proof"
+        ],
+        "resolved_gates": [
+          "gate-v1-differential-property-tests"
+        ],
+        "explicit": {
+          "requirement_ids": [],
+          "launch_gates": [],
+          "valid_requirement_ids": [],
+          "valid_launch_gates": [],
+          "unknown_requirement_ids": [],
+          "unknown_launch_gates": [],
+          "resolved_requirement_ids": [],
+          "resolved_gates": [],
+          "present": false
+        },
+        "inferred": {
+          "current_plan_gap_id": "gap-v1-differential-property-tests",
+          "launch_gates": [
+            "gate-v1-differential-property-tests"
+          ],
+          "requirement_ids": [
+            "req-v1-differential-property-proof"
+          ],
+          "valid": true
+        },
+        "artifact_contract": {
+          "requirement_ids": [
+            "req-v1-acceptance-docs",
+            "req-v1-benchmark-lower-bounds",
+            "req-v1-cli-dispatch-tests",
+            "req-v1-cli-help-smoke",
+            "req-v1-crash-matrix-output",
+            "req-v1-db-check-proof",
+            "req-v1-differential-property-proof",
+            "req-v1-page-storage-restart",
+            "req-v1-primary-index-proof",
+            "req-v1-record-format-doc",
+            "req-v1-secondary-index-proof",
+            "req-v1-sql-exec-examples",
+            "req-v1-wal-recovery-proof"
+          ],
+          "launch_gates": [
+            "gate-v1-bench-docs-acceptance",
+            "gate-v1-cli-smoke",
+            "gate-v1-crash-testing",
+            "gate-v1-db-check-invariants",
+            "gate-v1-differential-property-tests",
+            "gate-v1-disk-page-storage",
+            "gate-v1-indexes",
+            "gate-v1-sql-schema-exec",
+            "gate-v1-transactions-wal-recovery"
+          ]
+        }
+      },
+      "feedback": [],
+      "repair": {
+        "attempted": false,
+        "changed": false,
+        "changes": [],
+        "summary": "No repair needed."
+      }
+    }
+  ],
+  "final_metrics": {
+    "objective_plan_gap_fit": {
+      "score": 3,
+      "rationale": "Candidate maps to both an objective metric and a current-plan gap.",
+      "evidence": [
+        "metric:metric-v1-acceptance-evidence",
+        "gap:gap-v1-differential-property-tests"
+      ]
+    },
+    "causal_evidence_strength": {
+      "score": 3,
+      "rationale": "Candidate has concrete evidence for the proposed intervention.",
+      "evidence": [
+        "Root Progress Projection: `artifact_status=open`, open requirement에 `req-v1-differential-property-proof`가 포함되어 있습니다.",
+        "Root Progress Projection: `gate-v1-differential-property-tests`는 `status=open`, blocker는 `missing satisfied requirement rows`입니다.",
+        "Current Plan: `gap-v1-differential-property-tests`는 `metric-v1-acceptance-evidence`와 `gate-v1-differential-property-tests`에 매핑됩니다.",
+        "Current Artifact: `req-v1-differential-property-proof`는 deterministic seed capture가 있는 SQLite differential/property test evidence를 요구합니다.",
+        "Managed repo progress: `gap-v1-differential-property-tests`는 `missing_evidence`이며 SQLite differential/property harness가 아직 없습니다.",
+        "Queue Snapshot: active 또는 reserved task가 없습니다.",
+        "Cargo.toml",
+        "src/sql.rs",
+        "src/main.rs",
+        "src/lib.rs",
+        "tests/sql_exec.rs",
+        "tests/primary_index.rs",
+        "tests/wal_recovery.rs",
+        "tests/crash_matrix.rs",
+        "tests/db_check.rs",
+        "docs/cli_contract.md",
+        "docs/sql_subset.md",
+        "docs/v1_spec.md",
+        "work_queue/progress.md",
+        "sql::execute",
+        "sql::execute_select",
+        "sql::execute_select_primary_key",
+        "sql::parse_statements",
+        "main::main",
+        "autopilot/project_manager/tasks/tasks.json: no task with current_plan_gap_id gap-v1-differential-property-tests found by bounded search",
+        "task-2026-05-17-19-38-21-v1-sql-parser-schema-exec",
+        "task-2026-05-17-22-43-31-v1-primary-btree-index",
+        "task-2026-05-17-23-45-17-v1-transaction-wal-recovery",
+        "task-2026-05-18-02-23-10-v1-deterministic-crash-matrix",
+        "task-2026-05-18-03-29-23-v1-db-check-invariants",
+        "autopilot/project_manager/specs: no v1-differential-property-tests package present",
+        "persistent-db-core_worktree/main/specs: no v1-differential-property-tests package tracked"
+      ]
+    },
+    "handoff_verifiability": {
+      "score": 3,
+      "rationale": "Expected delta and acceptance proof are explicit.",
+      "evidence": [
+        "`cargo test --test differential_property` 또는 동등한 task-specific test command가 deterministic seed로 지원 SQL operation sequence를 실행합니다.",
+        "생성 시퀀스는 현재 지원되는 `CREATE TABLE`, `INSERT`, `SELECT *`, primary-key lookup 또는 ordered scan semantics를 포함하고 expected row ordering을 검증합니다.",
+        "실패 시 seed와 최소 재현 가능한 operation sequence가 test output 또는 generated evidence artifact에 남습니다.",
+        "`./scripts/verify`가 기존 fmt, clippy, full test, help smoke baseline을 계속 통과합니다.",
+        "최종 evidence가 `gate-v1-differential-property-tests`와 `req-v1-differential-property-proof`에 명시적으로 매핑됩니다."
+      ]
+    }
+  },
+  "low_metrics": [],
+  "constraint_blockers": [],
+  "artifact_mapping": {
+    "source": "inferred_current_plan_gap",
+    "blocker": "",
+    "blocker_reason": "",
+    "resolved_requirement_ids": [
+      "req-v1-differential-property-proof"
+    ],
+    "resolved_gates": [
+      "gate-v1-differential-property-tests"
+    ],
+    "explicit": {
+      "requirement_ids": [],
+      "launch_gates": [],
+      "valid_requirement_ids": [],
+      "valid_launch_gates": [],
+      "unknown_requirement_ids": [],
+      "unknown_launch_gates": [],
+      "resolved_requirement_ids": [],
+      "resolved_gates": [],
+      "present": false
+    },
+    "inferred": {
+      "current_plan_gap_id": "gap-v1-differential-property-tests",
+      "launch_gates": [
+        "gate-v1-differential-property-tests"
+      ],
+      "requirement_ids": [
+        "req-v1-differential-property-proof"
+      ],
+      "valid": true
+    },
+    "artifact_contract": {
+      "requirement_ids": [
+        "req-v1-acceptance-docs",
+        "req-v1-benchmark-lower-bounds",
+        "req-v1-cli-dispatch-tests",
+        "req-v1-cli-help-smoke",
+        "req-v1-crash-matrix-output",
+        "req-v1-db-check-proof",
+        "req-v1-differential-property-proof",
+        "req-v1-page-storage-restart",
+        "req-v1-primary-index-proof",
+        "req-v1-record-format-doc",
+        "req-v1-secondary-index-proof",
+        "req-v1-sql-exec-examples",
+        "req-v1-wal-recovery-proof"
+      ],
+      "launch_gates": [
+        "gate-v1-bench-docs-acceptance",
+        "gate-v1-cli-smoke",
+        "gate-v1-crash-testing",
+        "gate-v1-db-check-invariants",
+        "gate-v1-differential-property-tests",
+        "gate-v1-disk-page-storage",
+        "gate-v1-indexes",
+        "gate-v1-sql-schema-exec",
+        "gate-v1-transactions-wal-recovery"
+      ]
+    }
+  },
+  "repair_attempts": 0,
+  "final_disposition": "ready_for_handoff",
+  "evidence_gap_type": "",
+  "confidence_gap_reason": "",
+  "research_question": "",
+  "hypothesis_lineage": {
+    "objective_metric_id": "metric-v1-acceptance-evidence",
+    "current_plan_gap_id": "gap-v1-differential-property-tests",
+    "target_boundary": "managed_repo"
+  },
+  "repairability": {
+    "repairable": false,
+    "reason": "already_ready",
+    "allowed_findings": [],
+    "blocked_findings": []
+  }
+}

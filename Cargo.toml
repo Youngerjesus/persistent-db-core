@@ -8,3 +8,6 @@ name = "db"
 path = "src/main.rs"
 
 [dependencies]
+
+[dev-dependencies]
+rusqlite = { version = "0.31", features = ["bundled"] }
