@@ -1,0 +1,4 @@
+interface:
+  display_name: "Implementation Brake"
+  short_description: "Stress-test code before calling it done"
+  default_prompt: "Use $implementation-brake to review this implementation and drive the fixes through $tdd-workflow."

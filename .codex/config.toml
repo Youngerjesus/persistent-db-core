@@ -1,0 +1,94 @@
+model = "gpt-5.4"
+
+[analytics]
+enabled = false
+
+[features]
+multi_agent = true
+
+[agents]
+max_threads = 10
+max_depth = 3
+
+[agents.document-writer]
+description = "Technical documentation specialist for precise specs, contracts, and implementation-facing docs."
+config_file = "agents/document-writer.toml"
+
+[agents.product-builder]
+description = "Product decision partner for shaping scope, priorities, and value before implementation."
+config_file = "agents/product-builder.toml"
+
+[agents.architect]
+description = "Software architecture specialist for system design, scalability, and technical decision-making. Use PROACTIVELY when planning new features, refactoring large systems, or making architectural decisions."
+config_file = "agents/architect.toml"
+
+[agents.project-reviewer]
+description = "Critical reviewer for plans, architecture, and project-level tradeoffs."
+config_file = "agents/project-reviewer.toml"
+
+[agents.decision-brake-thinker]
+description = "Deepens important decisions using first principles, systems thinking, second-order effects, and inversion."
+config_file = "agents/decision-brake-thinker.toml"
+
+[agents.decision-brake-reviewer]
+description = "Independent reviewer for stress-testing main decision-brake judgments and companion-agent outputs."
+config_file = "agents/decision-brake-reviewer.toml"
+
+[agents.decision-brake-explorer]
+description = "Explores divergent problem models and alternative strategies outside the current decision path."
+config_file = "agents/decision-brake-explorer.toml"
+
+[agents.decision-brake-scope-targeter]
+description = "Reviews decision scope for too-small, too-large, and winnable-target boundaries."
+config_file = "agents/decision-brake-scope-targeter.toml"
+
+[agents.decision-brake-readiness-reviewer]
+description = "Reviews whether a decision is executable and handoff-ready, including missing inputs and required followups."
+config_file = "agents/decision-brake-readiness-reviewer.toml"
+
+[agents.implementation-brake-reviewer]
+description = "Implementation reviewer for correctness, regression, edge cases, and complexity."
+config_file = "agents/implementation-brake-reviewer.toml"
+
+[agents.task-master]
+description = "Task decomposition agent for turning accepted specs into executable work."
+config_file = "agents/task-master.toml"
+
+[agents.task-reviewer]
+description = "Task contract reviewer that strengthens technical constraints and verification obligations."
+config_file = "agents/task-reviewer.toml"
+
+[agents.code-reviewer]
+description = "Primary merge-gate reviewer for correctness, regressions, completeness, and merge safety."
+config_file = "agents/code-reviewer.toml"
+
+[agents.performance-reviewer]
+description = "Performance reviewer for concrete query, loop, async, rendering, bundle, unbounded data, and resource-risk regressions."
+config_file = "agents/performance-reviewer.toml"
+
+[agents.testing-reviewer]
+description = "Test quality reviewer focused on coverage gaps, negative paths, edge cases, and merge confidence."
+config_file = "agents/testing-reviewer.toml"
+
+[agents.security-reviewer]
+description = "Security reviewer for trust boundaries, auth/authz, injection defense, secret handling, and validation regressions."
+config_file = "agents/security-reviewer.toml"
+
+[agents.verifier]
+description = "Verification specialist for checking implementation against spec.md, contracts.md, code, and executed tests."
+config_file = "agents/verifier.toml"
+
+[agents.context-synchronizer]
+description = "Document consistency manager that keeps AGENTS.md, DESIGN.md, docs, specs, and .codex guidance aligned when assumptions change."
+config_file = "agents/context-synchronizer.toml"
+
+[agents.staff-engineer]
+description = "Primary code implementer for production-ready changes and review follow-up."
+config_file = "agents/staff-engineer.toml"
+
+[agents.qa-engineer]
+description = "전문 테스터/품질 보증 에이전트. pytest(백엔드 유닛/통합), Playwright(프론트엔드 E2E) 테스트 코드를 작성합니다. 새 기능 구현, 버그 수정, 리팩토링 후 PROACTIVELY 사용하세요."
+config_file = "agents/qa-engineer.toml"
+
+[sandbox_workspace_write]
+network_access = true

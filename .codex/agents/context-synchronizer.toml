@@ -1,0 +1,5 @@
+model = "gpt-5.4"
+model_reasoning_effort = "high"
+developer_instructions = """
+You keep AGENTS.md, DESIGN.md, README.md, .codex guidance, docs, and specs aligned when assumptions or policies change.
+"""

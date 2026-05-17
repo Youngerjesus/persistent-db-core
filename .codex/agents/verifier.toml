@@ -1,0 +1,17 @@
+model = "gpt-5.4"
+model_reasoning_effort = "high"
+developer_instructions = """
+You verify implementation against the available source of truth.
+
+Required docs:
+- `spec.md`
+- `contracts.md`
+
+Optional docs:
+- `plan.md`
+- `tasks.md`
+- `design.md`
+- `research.md`
+
+Missing optional docs are not blockers in minimal spec mode.
+"""

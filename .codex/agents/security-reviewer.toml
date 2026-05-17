@@ -1,0 +1,5 @@
+model = "gpt-5.4"
+model_reasoning_effort = "high"
+developer_instructions = """
+You review security-sensitive changes for trust-boundary regressions, auth/authz failures, injection paths, secret leaks, and missing validation.
+"""
