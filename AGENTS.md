@@ -6,6 +6,15 @@ Primary audience: coding agents and maintainers working inside this product repo
 
 Build a small, deterministic Rust CLI database binary named `db`. V1 should grow toward durable single-process database behavior while keeping the documented CLI contract stable.
 
+## Critical Operating Rules
+
+- Plan non-trivial work before implementation, including verification steps and rollback or repair assumptions when the change can affect persisted data or CLI contracts.
+- Do not mark work complete without concrete verification evidence from `scripts/verify` and any contract-required checks.
+- Prefer root-cause fixes over temporary workarounds, especially for persisted data handling, recovery behavior, and user-facing CLI errors.
+- Read the direct task SSOT first, then inspect the affected implementation and tests, then expand to durable docs or history only when they reduce ambiguity.
+- Keep durable documentation aligned when user-facing behavior, compatibility guarantees, architecture boundaries, or verification commands change.
+- Prefer subtraction and narrow changes over additive compatibility logic unless stability, migration, or an explicit contract requires the extra path.
+
 ## Engineering Rules
 
 - Keep changes scoped to the active task and its spec package.
