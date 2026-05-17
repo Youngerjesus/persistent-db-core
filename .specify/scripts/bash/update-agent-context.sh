@@ -252,7 +252,7 @@ get_commands_for_language() {
             echo "cd src && pytest && ruff check ."
             ;;
         *"Rust"*)
-            echo "cargo test && cargo clippy"
+            echo "scripts/verify"
             ;;
         *"JavaScript"*|*"TypeScript"*)
             echo "npm test \\&\\& npm run lint"
