@@ -37,6 +37,7 @@ Build a small, deterministic Rust CLI database binary named `db`. V1 should grow
 - Preserve existing public behavior unless the active spec explicitly changes it.
 - Add or update focused tests with behavior changes, including negative and edge cases for persisted data, recovery, indexing, and CLI contract work.
 - Update durable docs only when the user-facing or compatibility contract changes.
+- Implement in a tight loop: read contract, write or update focused tests, change code/docs, run targeted verification, then run `scripts/verify` once as the final repo baseline before completion.
 - If the spec, contract, and repo reality conflict, stop and report the conflict instead of silently changing scope.
 - Treat SDD pipeline `result_*.md` files as phase status reports. Their status line or `PM_RESULT:` sentinel expresses next owner and readiness; it is not a substitute for contract evidence.
 - Treat latest review/report files as verifier or reviewer SSOT: `qa_prep_review.md`, `impl_review.md`, `impl_brake_review.md`, `code_review.md`, and `final_review.md`.
