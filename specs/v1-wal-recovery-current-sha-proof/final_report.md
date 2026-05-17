@@ -3,13 +3,13 @@
 ### EV-PROVENANCE
 implementation_active_run_id: impl_retry_0_resume_20260518_013345_481129_3fa984a5
 implementation_result_path: /Users/jeongmin/Downloads/projects/autopilot-test/01-clear-answer-complex-software-db-core/autopilot/project_manager/tasks/task-2026-05-18-00-55-20-v1-wal-recovery-current-sha-proof/runs/impl_retry_0_resume_20260518_013345_481129_3fa984a5/result.md
-current-run generation: This report was regenerated during the implementation retry run above after strengthening live provenance validation and adding independent rolled-back WAL proof. Prior `impl_exec` evidence is historical only and was not reused as current proof.
+current-run generation: This report was regenerated during the final retry after the evidence self-check found the committed final report still named the pre-final-commit SHA. Prior `impl_exec` evidence is historical only and was not reused as current proof.
 evidence_root: specs/v1-wal-recovery-current-sha-proof/evidence/impl_retry_0_resume_20260518_013345_481129_3fa984a5/
 
 ### EV-IDENTITY-HEAD
 command: git rev-parse HEAD
 exit_code: 0
-stdout: "33b480cac6cf9d505a86eda4c149a4471454f11d"
+stdout: "13f25d6dcb00a10b07564d7e3aac734e0ffe8463"
 stderr: ""
 transcripts: evidence/impl_retry_0_resume_20260518_013345_481129_3fa984a5/git_head.stdout, git_head.stderr, git_head.exit
 
@@ -18,14 +18,10 @@ command: git status --short
 exit_code: 0
 stdout:
 ```
- M docs/history_archives/history.md
- M tests/wal_recovery.rs
- M work_queue/progress.md
-?? specs/v1-wal-recovery-current-sha-proof/
 ```
 stderr: ""
 transcripts: evidence/impl_retry_0_resume_20260518_013345_481129_3fa984a5/git_status_short.stdout, git_status_short.stderr, git_status_short.exit
-note: Product code delta is scoped to `tests/wal_recovery.rs`; finish documentation sync updates `work_queue/progress.md` and `docs/history_archives/history.md`; task-scoped spec/evidence artifacts remain under `specs/v1-wal-recovery-current-sha-proof/`.
+note: Current committed task branch status is clean. The committed product code delta is scoped to `tests/wal_recovery.rs`; finish documentation sync updated `work_queue/progress.md` and `docs/history_archives/history.md`; task-scoped spec/evidence artifacts remain under `specs/v1-wal-recovery-current-sha-proof/`.
 
 ### EV-TEST-WAL
 command: cargo test --test wal_recovery
@@ -88,6 +84,6 @@ transcript: evidence/impl_retry_0_resume_20260518_013345_481129_3fa984a5/wal_aft
 V1 has no public rollback command and no public command that can intentionally leave an incomplete transaction or incomplete WAL frame. Direct WAL fixtures are therefore the only deterministic way to represent V1-observable recovery-boundary bytes that may exist after an interrupted writer. `rolled_back_wal_frame_is_not_replayed_as_uncommitted_change` covers a complete uncommitted/rolled-back `9|ghost` frame independently from truncation. `incomplete_wal_entry_is_not_replayed_without_public_rollback_cli` covers an incomplete trailing `9|ghost` frame. Both recover through the public `db exec` reopen path and prove the ghost row is absent; the incomplete-tail cleanup path is separately covered by `committed_frame_after_incomplete_tail_cleanup_remains_replayable`.
 
 ### EV-ACCEPTANCE-MAPPING
-- gap-v1-transaction-wal-recovery: Current SHA `33b480cac6cf9d505a86eda4c149a4471454f11d` was reverified in this retry with live HEAD/status validation, focused WAL tests, baseline verification, CLI reopen smoke, and retained WAL sidecar byte-state evidence.
+- gap-v1-transaction-wal-recovery: Current task branch SHA `13f25d6dcb00a10b07564d7e3aac734e0ffe8463` was reverified in this retry with live HEAD/status validation, focused WAL tests, baseline verification, CLI reopen smoke, and retained WAL sidecar byte-state evidence. The original stale-proof target SHA was `33b480cac6cf9d505a86eda4c149a4471454f11d`; the committed proof branch contains that implementation state plus the WAL proof artifact delta.
 - gate-v1-transactions-wal-recovery: Evidence layers now separately cover committed mutation survival, complete rolled-back/uncommitted frame absence, incomplete trailing WAL exclusion, retained-frame idempotence, deterministic ahead-of-store failure, and complete-frame sidecar retention.
 - req-v1-wal-recovery-proof: `committed_wal_replay_survives_reopen_via_cli` proves committed changes survive process reopen; `rolled_back_wal_frame_is_not_replayed_as_uncommitted_change` proves complete uncommitted/rolled-back changes are absent; `incomplete_wal_entry_is_not_replayed_without_public_rollback_cli` proves incomplete trailing WAL ghost absence; `committed_frame_after_incomplete_tail_cleanup_remains_replayable` proves cleanup keeps future replay possible; `committed_wal_frame_ahead_of_page_store_fails_deterministically` proves dependency/order corruption fails deterministically.
