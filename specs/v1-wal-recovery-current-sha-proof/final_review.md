@@ -2,20 +2,21 @@ Verdict: PASS
 
 ## Scope
 
-- Phase: Final Retry 1 for `task-2026-05-18-00-55-20-v1-wal-recovery-current-sha-proof`.
+- Phase: Final Retry 2 for `task-2026-05-18-00-55-20-v1-wal-recovery-current-sha-proof`.
 - Canonical spec: `specs/v1-wal-recovery-current-sha-proof/spec.md`.
 - Canonical contract: `specs/v1-wal-recovery-current-sha-proof/contracts.md`.
-- Retry target: repair final-family evidence freshness after the committed evidence self-check failed at branch HEAD `13f25d6dcb00a10b07564d7e3aac734e0ffe8463`.
-- Reviewed current delta: `final_report.md`, `verify_evidence_contract.sh`, this final-family SSOT, and `final_review.history.md`.
+- Retry target: repair source-backed evidence freshness after final verification 2 found `final_report.md` inline HEAD/status values contradicted the linked transcript files.
+- Reviewed current delta: `final_report.md`, `verify_evidence_contract.sh`, new final_retry_2 identity/status transcripts, this final-family SSOT, and `final_review.history.md`.
 - Browser, DOM, screenshot, route, and UX evidence are not required by this Rust CLI WAL recovery contract.
 
 ## Closure Checks
 
-- PASS: `final_report.md` now records committed branch SHA `13f25d6dcb00a10b07564d7e3aac734e0ffe8463` as the current-SHA proof identity and records clean committed branch status.
-- PASS: `verify_evidence_contract.sh` now validates the report identity against live HEAD or the immediate pre-final commit HEAD, allowing the normal finish retry commit to contain the corrected report while still rejecting unrelated stale SHAs.
-- PASS: The final verifier's FAIL content was summarized into `final_review.history.md`; latest `final_review.md` now contains only current retry verdict context.
-- PASS: PR #5 is already merged into `main` at `41d477ae6a5c70f02e1134d53ec695de6b2d7348`; this retry only corrects final-family evidence freshness.
-- PASS: WAL behavior remains unchanged from the reviewed proof package: committed replay, rolled-back/uncommitted absence, incomplete-tail exclusion, retained replayability, and deterministic ahead-of-store failure are still covered by `tests/wal_recovery.rs`.
+- PASS: New source-backed identity transcript `evidence/final_retry_2_resume_20260518_021150_286954_dbddfabb/git_head.stdout` records `5f55110307d2f57c6a809d48409df06385ef9133`, matching `final_report.md` inline `EV-IDENTITY-HEAD`.
+- PASS: New source-backed dirty-state transcript `evidence/final_retry_2_resume_20260518_021150_286954_dbddfabb/git_status_short.stdout` matches `final_report.md` inline `EV-IDENTITY-STATUS`.
+- PASS: `verify_evidence_contract.sh` now checks that linked identity/status transcript files exist and match the inline report values; the checker rejects mismatched linked transcripts.
+- PASS: `bash specs/v1-wal-recovery-current-sha-proof/verify_evidence_contract.sh` exits 0 after the source-backed evidence refresh.
+- PASS: WAL behavior and baseline verification remain unchanged from final verification 2: `cargo test --test wal_recovery`, `./scripts/verify`, and independent CLI smoke all passed there.
+- PASS: Remote closure state is PR #6 merged into `main` with branch commit `5f55110307d2f57c6a809d48409df06385ef9133` and merge commit `4c267a8fb4c79cece823ddd207f8f1a3e4c2d9e3`.
 
 ## Open Items
 
@@ -23,20 +24,23 @@ Verdict: PASS
 
 ## Verification Evidence
 
-- Pre-retry failure reproduced from latest final verifier: `bash specs/v1-wal-recovery-current-sha-proof/verify_evidence_contract.sh` failed because `final_report.md` still recorded `33b480cac6cf9d505a86eda4c149a4471454f11d`.
-- Corrected evidence target: `final_report.md` now records `stdout: "13f25d6dcb00a10b07564d7e3aac734e0ffe8463"` for `git rev-parse HEAD`.
-- Corrected status target: `final_report.md` now records an empty `git status --short` fenced block for the committed task branch.
-- Required post-commit commands for this retry: `bash specs/v1-wal-recovery-current-sha-proof/verify_evidence_contract.sh`, `cargo test --test wal_recovery`, and `./scripts/verify`.
+- `git rev-parse HEAD` transcript: `specs/v1-wal-recovery-current-sha-proof/evidence/final_retry_2_resume_20260518_021150_286954_dbddfabb/git_head.stdout`, value `5f55110307d2f57c6a809d48409df06385ef9133`.
+- `git status --short` transcript: `specs/v1-wal-recovery-current-sha-proof/evidence/final_retry_2_resume_20260518_021150_286954_dbddfabb/git_status_short.stdout`, matching the final retry 2 entry dirty state recorded inline in `final_report.md`.
+- `bash specs/v1-wal-recovery-current-sha-proof/verify_evidence_contract.sh`: exit 0, output `evidence contract shape ok`.
+- `bash -n specs/v1-wal-recovery-current-sha-proof/verify_evidence_contract.sh`: exit 0.
+- Prior final verification 2 evidence remains valid for behavior checks: `cargo test --test wal_recovery`, `./scripts/verify`, and independent CLI smoke passed before this source-evidence repair.
 
 ## Remote State
 
-- Prior finish PR #5 is merged into `main` at merge commit `41d477ae6a5c70f02e1134d53ec695de6b2d7348`.
-- The retry correction will be committed on the task branch and routed through a follow-up PR if remote `main` does not already contain the retry correction.
+- PR #6 is merged into `main`: `https://github.com/Youngerjesus/persistent-db-core/pull/6`.
+- Branch commit already merged before this retry 2 repair: `5f55110307d2f57c6a809d48409df06385ef9133`.
+- Merge commit before this retry 2 repair: `4c267a8fb4c79cece823ddd207f8f1a3e4c2d9e3`.
+- This retry 2 source-evidence repair will be committed and routed through a follow-up PR if remote `main` does not already contain it.
 
 ## Next Action
 
-- Commit the final retry evidence freshness correction, run the required post-commit checks, push the task branch, create/merge the follow-up PR if needed, and write the retry manifest/result.
+- Commit the final retry 2 source-evidence repair, rerun post-commit evidence and baseline checks, push, create/merge the follow-up PR if needed, and write the retry 2 manifest/result.
 
 ## Updated At
 
-2026-05-17T17:08:00Z
+2026-05-17T17:16:00Z

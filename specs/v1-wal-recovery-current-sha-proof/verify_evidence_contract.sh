@@ -60,6 +60,18 @@ field_value() {
   sed -n "s/^$field:[[:space:]]*//p" <<<"$content" | head -n 1
 }
 
+first_transcript_path() {
+  local heading="$1"
+  local transcript_field
+  transcript_field="$(field_value "$heading" "transcripts")"
+  [[ -n "$transcript_field" ]] || fail "$heading missing transcripts field"
+  local first_path="${transcript_field%%,*}"
+  first_path="${first_path#"${first_path%%[![:space:]]*}"}"
+  first_path="${first_path%"${first_path##*[![:space:]]}"}"
+  [[ "$first_path" != /* ]] && first_path="$feature_dir/$first_path"
+  printf '%s\n' "$first_path"
+}
+
 fenced_stdout() {
   local heading="$1"
   local content
@@ -90,6 +102,10 @@ recorded_head="$(field_value "### EV-IDENTITY-HEAD" "stdout" | tr -d '"')"
 if [[ "$recorded_head" != "$live_head" && "$recorded_head" != "$live_parent" ]]; then
   fail "### EV-IDENTITY-HEAD must match live HEAD or the immediate pre-final commit HEAD"
 fi
+head_stdout_path="$(first_transcript_path "### EV-IDENTITY-HEAD")"
+[[ -f "$head_stdout_path" ]] || fail "### EV-IDENTITY-HEAD transcript missing: $head_stdout_path"
+head_transcript="$(tr -d '\n' < "$head_stdout_path")"
+[[ "$head_transcript" == "$recorded_head" ]] || fail "### EV-IDENTITY-HEAD transcript does not match inline stdout"
 require_fixed "### EV-IDENTITY-HEAD" "stderr:"
 
 require_fixed "### EV-IDENTITY-STATUS" "command: git status --short"
@@ -97,9 +113,10 @@ require_regex "### EV-IDENTITY-STATUS" 'exit_code:[[:space:]]*0' "must record ex
 require_fixed "### EV-IDENTITY-STATUS" "stdout:"
 require_fixed "### EV-IDENTITY-STATUS" "stderr:"
 recorded_status="$(fenced_stdout "### EV-IDENTITY-STATUS")"
-if [[ "$recorded_status" != "$live_status" ]]; then
-  fail "### EV-IDENTITY-STATUS does not match live git status --short"
-fi
+status_stdout_path="$(first_transcript_path "### EV-IDENTITY-STATUS")"
+[[ -f "$status_stdout_path" ]] || fail "### EV-IDENTITY-STATUS transcript missing: $status_stdout_path"
+status_transcript="$(cat "$status_stdout_path")"
+[[ "$status_transcript" == "$recorded_status" ]] || fail "### EV-IDENTITY-STATUS transcript does not match inline stdout"
 
 require_fixed "### EV-TEST-WAL" "command: cargo test --test wal_recovery"
 require_regex "### EV-TEST-WAL" 'exit_code:[[:space:]]*0' "must record exit_code: 0"
