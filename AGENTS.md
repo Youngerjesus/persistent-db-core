@@ -51,9 +51,10 @@ When a boundary map is introduced, dependencies must be one-way: higher-level or
 
 ## Verification Scripts
 
-- `scripts/verify` is the baseline local verification entrypoint.
+- `scripts/verify` is the baseline local verification entrypoint and must work from any caller cwd, including absolute-path invocation from outside the repo.
 - It runs `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`, and `cargo run --bin db -- --help`.
 - It must fail on missing tools and failed checks; do not silently skip required verification.
+- Future `contracts.md` and task `verification.commands` entries must use `scripts/verify` as the baseline evidence command. Add task-specific commands only for narrower or deeper evidence, such as `cargo test --test page_storage`.
 - DB-specific deeper verification, such as crash/restart, property, differential, or benchmark checks, should live in additional `scripts/verify*` scripts when too slow or specialized for the baseline.
 - Any `scripts/verify*` or contract-required verification failure blocks completion.
 
