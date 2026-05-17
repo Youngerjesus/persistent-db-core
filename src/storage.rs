@@ -12,6 +12,14 @@ const DATA_PAGE_HEADER_SIZE: usize = 16;
 const DATA_PAGE_USED_OFFSET: usize = 8;
 const DATA_PAGE_RECORD_COUNT_OFFSET: usize = 10;
 const RECORD_LENGTH_SIZE: usize = 4;
+const WAL_MAGIC: &[u8; 8] = b"PDBWAL1\0";
+const WAL_VERSION: u16 = 1;
+const WAL_STATE_COMMITTED: u8 = 0x01;
+const WAL_STATE_ROLLED_BACK: u8 = 0x02;
+const WAL_PAYLOAD_KIND_PAGE_APPEND: u8 = 0x01;
+const WAL_HEADER_LEN: usize = 36;
+const WAL_CHECKSUM_OFFSET: usize = 32;
+const WAL_CHECKSUM_END: usize = 36;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StorageError {
@@ -51,6 +59,8 @@ impl PageStore {
             validate_file(&path)?;
         }
 
+        replay_wal(&path)?;
+
         Ok(Self { path })
     }
 
@@ -59,51 +69,9 @@ impl PageStore {
             return Err(StorageError::RecordTooLarge);
         }
 
-        validate_file(&self.path)?;
-
-        let mut file = OpenOptions::new().read(true).write(true).open(&self.path)?;
-        let mut page_count = read_page_count(&mut file)?;
-
-        if page_count == 1 {
-            append_empty_data_page(&mut file)?;
-            page_count = 2;
-            write_page_count(&mut file, page_count)?;
-        }
-
-        let record_size = RECORD_LENGTH_SIZE + payload.len();
-        let mut page_index = page_count - 1;
-        let mut page = read_page(&mut file, page_index)?;
-        let mut used = data_page_used(&page)? as usize;
-
-        if used + record_size > PAGE_SIZE {
-            append_empty_data_page(&mut file)?;
-            page_count += 1;
-            page_index = page_count - 1;
-            write_page_count(&mut file, page_count)?;
-            page = empty_data_page();
-            used = DATA_PAGE_HEADER_SIZE;
-        }
-
-        if used + record_size > PAGE_SIZE {
-            return Err(StorageError::RecordTooLarge);
-        }
-
-        page[used..used + RECORD_LENGTH_SIZE]
-            .copy_from_slice(&(payload.len() as u32).to_le_bytes());
-        let payload_start = used + RECORD_LENGTH_SIZE;
-        page[payload_start..payload_start + payload.len()].copy_from_slice(payload);
-
-        let new_used = used + record_size;
-        let new_count = data_page_record_count(&page)?
-            .checked_add(1)
-            .ok_or(StorageError::Io)?;
-        page[DATA_PAGE_USED_OFFSET..DATA_PAGE_USED_OFFSET + 2]
-            .copy_from_slice(&(new_used as u16).to_le_bytes());
-        page[DATA_PAGE_RECORD_COUNT_OFFSET..DATA_PAGE_RECORD_COUNT_OFFSET + 2]
-            .copy_from_slice(&new_count.to_le_bytes());
-
-        write_page(&mut file, page_index, &page)?;
-        file.flush()?;
+        let record_count_before = total_record_count(&self.path)?;
+        append_wal_frame(&wal_path(&self.path), record_count_before, payload)?;
+        append_record_to_file(&self.path, payload)?;
         Ok(())
     }
 
@@ -121,6 +89,54 @@ impl PageStore {
 
         Ok(records)
     }
+}
+
+fn append_record_to_file(path: &Path, payload: &[u8]) -> Result<(), StorageError> {
+    validate_file(path)?;
+
+    let mut file = OpenOptions::new().read(true).write(true).open(path)?;
+    let mut page_count = read_page_count(&mut file)?;
+
+    if page_count == 1 {
+        append_empty_data_page(&mut file)?;
+        page_count = 2;
+        write_page_count(&mut file, page_count)?;
+    }
+
+    let record_size = RECORD_LENGTH_SIZE + payload.len();
+    let mut page_index = page_count - 1;
+    let mut page = read_page(&mut file, page_index)?;
+    let mut used = data_page_used(&page)? as usize;
+
+    if used + record_size > PAGE_SIZE {
+        append_empty_data_page(&mut file)?;
+        page_count += 1;
+        page_index = page_count - 1;
+        write_page_count(&mut file, page_count)?;
+        page = empty_data_page();
+        used = DATA_PAGE_HEADER_SIZE;
+    }
+
+    if used + record_size > PAGE_SIZE {
+        return Err(StorageError::RecordTooLarge);
+    }
+
+    page[used..used + RECORD_LENGTH_SIZE].copy_from_slice(&(payload.len() as u32).to_le_bytes());
+    let payload_start = used + RECORD_LENGTH_SIZE;
+    page[payload_start..payload_start + payload.len()].copy_from_slice(payload);
+
+    let new_used = used + record_size;
+    let new_count = data_page_record_count(&page)?
+        .checked_add(1)
+        .ok_or(StorageError::Io)?;
+    page[DATA_PAGE_USED_OFFSET..DATA_PAGE_USED_OFFSET + 2]
+        .copy_from_slice(&(new_used as u16).to_le_bytes());
+    page[DATA_PAGE_RECORD_COUNT_OFFSET..DATA_PAGE_RECORD_COUNT_OFFSET + 2]
+        .copy_from_slice(&new_count.to_le_bytes());
+
+    write_page(&mut file, page_index, &page)?;
+    file.flush()?;
+    Ok(())
 }
 
 fn validate_file(path: &Path) -> Result<(), StorageError> {
@@ -156,6 +172,166 @@ fn validate_file(path: &Path) -> Result<(), StorageError> {
     }
 
     Ok(())
+}
+
+fn replay_wal(path: &Path) -> Result<(), StorageError> {
+    let wal_path = wal_path(path);
+    if !wal_path.exists() {
+        return Ok(());
+    }
+
+    let bytes = std::fs::read(&wal_path)?;
+    let mut offset = 0usize;
+    let mut truncate_to = None;
+    while offset < bytes.len() {
+        let remaining = bytes.len() - offset;
+        if remaining < WAL_HEADER_LEN {
+            truncate_to = Some(offset);
+            break;
+        }
+
+        let header = &bytes[offset..offset + WAL_HEADER_LEN];
+        if &header[0..8] != WAL_MAGIC {
+            return Err(StorageError::InvalidMagic);
+        }
+
+        let version = u16::from_le_bytes([header[8], header[9]]);
+        if version != WAL_VERSION {
+            return Err(StorageError::UnsupportedVersion);
+        }
+
+        let record_count_before = u64::from_le_bytes([
+            header[18], header[19], header[20], header[21], header[22], header[23], header[24],
+            header[25],
+        ]);
+        let state = header[26];
+        let payload_kind = header[27];
+        let payload_len =
+            u32::from_le_bytes([header[28], header[29], header[30], header[31]]) as usize;
+        let frame_len = WAL_HEADER_LEN
+            .checked_add(payload_len)
+            .ok_or(StorageError::CorruptRecordLength)?;
+        if remaining < frame_len {
+            truncate_to = Some(offset);
+            break;
+        }
+
+        let frame = &bytes[offset..offset + frame_len];
+        let expected_checksum =
+            u32::from_le_bytes([header[32], header[33], header[34], header[35]]);
+        if expected_checksum != wal_checksum(frame) {
+            return Err(StorageError::CorruptRecordLength);
+        }
+
+        if state == WAL_STATE_COMMITTED && payload_kind == WAL_PAYLOAD_KIND_PAGE_APPEND {
+            let current_record_count = total_record_count(path)?;
+            match current_record_count.cmp(&record_count_before) {
+                std::cmp::Ordering::Equal => {
+                    append_record_to_file(path, &frame[WAL_HEADER_LEN..])?;
+                }
+                std::cmp::Ordering::Less => return Err(StorageError::CorruptRecordLength),
+                std::cmp::Ordering::Greater => {}
+            }
+        } else if state != WAL_STATE_ROLLED_BACK {
+            return Err(StorageError::InvalidMagic);
+        }
+
+        offset += frame_len;
+    }
+
+    if let Some(len) = truncate_to {
+        OpenOptions::new()
+            .write(true)
+            .open(&wal_path)?
+            .set_len(len as u64)?;
+    }
+
+    Ok(())
+}
+
+fn append_wal_frame(
+    wal_path: &Path,
+    record_count_before: u64,
+    payload: &[u8],
+) -> Result<(), StorageError> {
+    let payload_len = u32::try_from(payload.len()).map_err(|_| StorageError::RecordTooLarge)?;
+    let frame_id = next_wal_frame_id(wal_path)?;
+    let mut frame = Vec::with_capacity(WAL_HEADER_LEN + payload.len());
+    frame.extend_from_slice(WAL_MAGIC);
+    frame.extend_from_slice(&WAL_VERSION.to_le_bytes());
+    frame.extend_from_slice(&frame_id.to_le_bytes());
+    frame.extend_from_slice(&record_count_before.to_le_bytes());
+    frame.push(WAL_STATE_COMMITTED);
+    frame.push(WAL_PAYLOAD_KIND_PAGE_APPEND);
+    frame.extend_from_slice(&payload_len.to_le_bytes());
+    frame.extend_from_slice(&0u32.to_le_bytes());
+    frame.extend_from_slice(payload);
+
+    let checksum = wal_checksum(&frame);
+    frame[WAL_CHECKSUM_OFFSET..WAL_CHECKSUM_END].copy_from_slice(&checksum.to_le_bytes());
+
+    let mut file = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(wal_path)?;
+    file.write_all(&frame)?;
+    file.flush()?;
+    Ok(())
+}
+
+fn next_wal_frame_id(wal_path: &Path) -> Result<u64, StorageError> {
+    if !wal_path.exists() {
+        return Ok(1);
+    }
+
+    let bytes = std::fs::read(wal_path)?;
+    let mut offset = 0usize;
+    let mut frames = 0u64;
+    while offset + WAL_HEADER_LEN <= bytes.len() {
+        let payload_len = u32::from_le_bytes([
+            bytes[offset + 28],
+            bytes[offset + 29],
+            bytes[offset + 30],
+            bytes[offset + 31],
+        ]) as usize;
+        let Some(frame_len) = WAL_HEADER_LEN.checked_add(payload_len) else {
+            break;
+        };
+        if offset + frame_len > bytes.len() {
+            break;
+        }
+        frames = frames.checked_add(1).ok_or(StorageError::Io)?;
+        offset += frame_len;
+    }
+    Ok(frames + 1)
+}
+
+fn wal_checksum(frame: &[u8]) -> u32 {
+    frame
+        .iter()
+        .enumerate()
+        .filter(|(index, _)| !(WAL_CHECKSUM_OFFSET..WAL_CHECKSUM_END).contains(index))
+        .fold(0u32, |sum, (_, byte)| sum.wrapping_add(*byte as u32))
+}
+
+fn total_record_count(path: &Path) -> Result<u64, StorageError> {
+    validate_file(path)?;
+    let mut file = OpenOptions::new().read(true).open(path)?;
+    let page_count = read_page_count(&mut file)?;
+    let mut total = 0u64;
+    for page_index in 1..page_count {
+        let page = read_page(&mut file, page_index)?;
+        total = total
+            .checked_add(data_page_record_count(&page)? as u64)
+            .ok_or(StorageError::Io)?;
+    }
+    Ok(total)
+}
+
+fn wal_path(path: &Path) -> PathBuf {
+    let mut sidecar = path.as_os_str().to_os_string();
+    sidecar.push(".wal");
+    PathBuf::from(sidecar)
 }
 
 fn validate_file_header(page: &[u8]) -> Result<(), StorageError> {

@@ -69,3 +69,46 @@ Opening or reading a file validates the header and every declared data page. Sho
 ## Compatibility Note
 
 V1 is pre-launch and does not guarantee backward compatibility for existing user data. After this page and record format is introduced, format changes must not be made implicitly: the documentation and deterministic tests must be updated together with any intentional format change. SQL logical-record evolution must preserve the lower-level page framing unless a future task explicitly changes the page format contract. The primary-key catalog extension is optional so existing row-only SQL database files remain readable as non-primary-key tables.
+
+## Write-Ahead Log Sidecar
+
+Each database path may have a retained local write-ahead log sidecar at
+`<database-path>.wal`, for example `data.pdb.wal` beside `data.pdb`. Existing
+database files without this sidecar remain valid and open normally.
+
+The WAL is an append-only stream of frames. All multi-byte integer fields are
+little-endian.
+
+| Offset | Size | Field |
+| --- | ---: | --- |
+| 0 | 8 | WAL magic `PDBWAL1\0` |
+| 8 | 2 | WAL version, currently `1` |
+| 10 | 8 | Frame id |
+| 18 | 8 | Durable page-store record count before this frame |
+| 26 | 1 | State: `0x01` committed, `0x02` rolled back |
+| 27 | 1 | Payload kind: `0x01` page append |
+| 28 | 4 | Payload length in bytes |
+| 32 | 4 | Additive checksum of the full frame with this checksum field treated as zero |
+| 36 | variable | Payload bytes |
+
+For payload kind `0x01`, the payload is exactly one page-store record payload:
+the same bytes that would appear after the page record's `u32` length prefix.
+`PageStore::append_record` writes a committed WAL frame before appending the
+payload to the page file.
+
+On open, replay scans frames in append order. A complete committed page-append
+frame is applied only when its `record count before` equals the current durable
+record count, which makes retained frames idempotent across repeated opens. A
+frame whose `record count before` is lower than the current durable count is
+treated as already applied. A frame whose `record count before` is higher than
+the current durable count is a deterministic storage corruption error because
+the WAL and page file order disagree. Rolled-back frames are skipped.
+
+An incomplete trailing frame, including a short header or a short payload, is
+ignored, removed from the sidecar during open, and not exposed as a durable
+record. This keeps future WAL appends reachable by replay instead of appending
+after bytes that replay must ignore. Complete frames with invalid magic,
+unsupported version, checksum mismatch, or unknown non-rollback state are
+treated as storage corruption and fail open with the existing storage error
+surface. Complete WAL frames are retained after replay; V1 does not checkpoint
+or truncate complete frames.
