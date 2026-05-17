@@ -1,0 +1,259 @@
+{
+  "max_rounds": 3,
+  "max_repair_attempts": 2,
+  "threshold": 2,
+  "rounds": [
+    {
+      "round": 1,
+      "metrics": {
+        "objective_plan_gap_fit": {
+          "score": 3,
+          "rationale": "Candidate maps to both an objective metric and a current-plan gap.",
+          "evidence": [
+            "metric:metric-v1-acceptance-evidence",
+            "gap:gap-v1-bench-docs-acceptance"
+          ]
+        },
+        "causal_evidence_strength": {
+          "score": 3,
+          "rationale": "Candidate has concrete evidence for the proposed intervention.",
+          "evidence": [
+            "Root Progress Projection: `artifact_status=open`, `gate-v1-bench-docs-acceptance` status=`open`, missing_requirement_ids=`req-v1-benchmark-lower-bounds`, `req-v1-acceptance-docs`.",
+            "Current Artifact: `req-v1-benchmark-lower-bounds`는 benchmark output, benchmark command, lower-bound documentation을 요구합니다.",
+            "Current Artifact: `req-v1-acceptance-docs`는 V1 usage와 acceptance docs가 각 launch gate를 evidence에 매핑해야 한다고 정의합니다.",
+            "Current Plan: `gap-v1-bench-docs-acceptance`는 `metric-v1-acceptance-evidence`와 `gate-v1-bench-docs-acceptance`에 연결되어 있으며 next candidate hint가 benchmark harness, lower-bound docs, acceptance guide입니다.",
+            "Active Managed Repo Snapshot: `git_status=clean`, Queue Snapshot=`[]`.",
+            "Managed repo progress: 다음 작은 handoff 후보로 benchmark/acceptance docs를 언급하며, 기존 SQL, recovery, check, differential baseline 위에서 진행 가능하다고 기록합니다.",
+            "autopilot/ssot/current-plan.md",
+            "autopilot/ssot/current-artifact.md",
+            "autopilot/progress/launch-readiness.md",
+            "autopilot/progress/launch-readiness.json",
+            "autopilot/project_manager/tasks/tasks.json",
+            "persistent-db-core_worktree/main/src/main.rs",
+            "persistent-db-core_worktree/main/tests/cli_contract.rs",
+            "persistent-db-core_worktree/main/docs/cli_contract.md",
+            "persistent-db-core_worktree/main/docs/v1_spec.md",
+            "persistent-db-core_worktree/main/work_queue/progress.md",
+            "HELP",
+            "main",
+            "bench_reserved_future_command_remains_unsupported",
+            "autopilot/project_manager/tasks/tasks.json: candidate-v1-bench-docs-acceptance 검색 결과 없음",
+            "autopilot/project_manager/tasks/tasks.json: gap-v1-bench-docs-acceptance 검색 결과 없음",
+            "autopilot/project_manager/specs: v1-bench-docs-acceptance spec directory 없음"
+          ]
+        },
+        "handoff_verifiability": {
+          "score": 3,
+          "rationale": "Expected delta and acceptance proof are explicit.",
+          "evidence": [
+            "`scripts/verify`가 계속 통과합니다.",
+            "벤치마크 명령 또는 스크립트가 clean checkout에서 실행 가능하며, 결과 출력이 lower-bound 판단에 필요한 수치와 환경 전제를 포함합니다.",
+            "benchmark lower bounds 문서가 측정 대상, 입력 규모, 통과 기준, 변동성 전제를 명시합니다.",
+            "V1 acceptance docs가 `gate-v1-cli-smoke`부터 `gate-v1-bench-docs-acceptance`까지 각 launch gate를 현재 evidence requirement와 검증 명령에 매핑합니다.",
+            "새 문서는 V1 단일 프로세스 Rust CLI 경계를 유지하고, 아직 검증되지 않은 성능 또는 기능 완료를 과장하지 않습니다."
+          ]
+        }
+      },
+      "low_metrics": [],
+      "constraint_blockers": [],
+      "artifact_mapping": {
+        "source": "inferred_current_plan_gap",
+        "blocker": "",
+        "blocker_reason": "",
+        "resolved_requirement_ids": [
+          "req-v1-benchmark-lower-bounds",
+          "req-v1-acceptance-docs"
+        ],
+        "resolved_gates": [
+          "gate-v1-bench-docs-acceptance"
+        ],
+        "explicit": {
+          "requirement_ids": [],
+          "launch_gates": [],
+          "valid_requirement_ids": [],
+          "valid_launch_gates": [],
+          "unknown_requirement_ids": [],
+          "unknown_launch_gates": [],
+          "resolved_requirement_ids": [],
+          "resolved_gates": [],
+          "present": false
+        },
+        "inferred": {
+          "current_plan_gap_id": "gap-v1-bench-docs-acceptance",
+          "launch_gates": [
+            "gate-v1-bench-docs-acceptance"
+          ],
+          "requirement_ids": [
+            "req-v1-benchmark-lower-bounds",
+            "req-v1-acceptance-docs"
+          ],
+          "valid": true
+        },
+        "artifact_contract": {
+          "requirement_ids": [
+            "req-v1-acceptance-docs",
+            "req-v1-benchmark-lower-bounds",
+            "req-v1-cli-dispatch-tests",
+            "req-v1-cli-help-smoke",
+            "req-v1-crash-matrix-output",
+            "req-v1-db-check-proof",
+            "req-v1-differential-property-proof",
+            "req-v1-page-storage-restart",
+            "req-v1-primary-index-proof",
+            "req-v1-record-format-doc",
+            "req-v1-secondary-index-proof",
+            "req-v1-sql-exec-examples",
+            "req-v1-wal-recovery-proof"
+          ],
+          "launch_gates": [
+            "gate-v1-bench-docs-acceptance",
+            "gate-v1-cli-smoke",
+            "gate-v1-crash-testing",
+            "gate-v1-db-check-invariants",
+            "gate-v1-differential-property-tests",
+            "gate-v1-disk-page-storage",
+            "gate-v1-indexes",
+            "gate-v1-sql-schema-exec",
+            "gate-v1-transactions-wal-recovery"
+          ]
+        }
+      },
+      "feedback": [],
+      "repair": {
+        "attempted": false,
+        "changed": false,
+        "changes": [],
+        "summary": "No repair needed."
+      }
+    }
+  ],
+  "final_metrics": {
+    "objective_plan_gap_fit": {
+      "score": 3,
+      "rationale": "Candidate maps to both an objective metric and a current-plan gap.",
+      "evidence": [
+        "metric:metric-v1-acceptance-evidence",
+        "gap:gap-v1-bench-docs-acceptance"
+      ]
+    },
+    "causal_evidence_strength": {
+      "score": 3,
+      "rationale": "Candidate has concrete evidence for the proposed intervention.",
+      "evidence": [
+        "Root Progress Projection: `artifact_status=open`, `gate-v1-bench-docs-acceptance` status=`open`, missing_requirement_ids=`req-v1-benchmark-lower-bounds`, `req-v1-acceptance-docs`.",
+        "Current Artifact: `req-v1-benchmark-lower-bounds`는 benchmark output, benchmark command, lower-bound documentation을 요구합니다.",
+        "Current Artifact: `req-v1-acceptance-docs`는 V1 usage와 acceptance docs가 각 launch gate를 evidence에 매핑해야 한다고 정의합니다.",
+        "Current Plan: `gap-v1-bench-docs-acceptance`는 `metric-v1-acceptance-evidence`와 `gate-v1-bench-docs-acceptance`에 연결되어 있으며 next candidate hint가 benchmark harness, lower-bound docs, acceptance guide입니다.",
+        "Active Managed Repo Snapshot: `git_status=clean`, Queue Snapshot=`[]`.",
+        "Managed repo progress: 다음 작은 handoff 후보로 benchmark/acceptance docs를 언급하며, 기존 SQL, recovery, check, differential baseline 위에서 진행 가능하다고 기록합니다.",
+        "autopilot/ssot/current-plan.md",
+        "autopilot/ssot/current-artifact.md",
+        "autopilot/progress/launch-readiness.md",
+        "autopilot/progress/launch-readiness.json",
+        "autopilot/project_manager/tasks/tasks.json",
+        "persistent-db-core_worktree/main/src/main.rs",
+        "persistent-db-core_worktree/main/tests/cli_contract.rs",
+        "persistent-db-core_worktree/main/docs/cli_contract.md",
+        "persistent-db-core_worktree/main/docs/v1_spec.md",
+        "persistent-db-core_worktree/main/work_queue/progress.md",
+        "HELP",
+        "main",
+        "bench_reserved_future_command_remains_unsupported",
+        "autopilot/project_manager/tasks/tasks.json: candidate-v1-bench-docs-acceptance 검색 결과 없음",
+        "autopilot/project_manager/tasks/tasks.json: gap-v1-bench-docs-acceptance 검색 결과 없음",
+        "autopilot/project_manager/specs: v1-bench-docs-acceptance spec directory 없음"
+      ]
+    },
+    "handoff_verifiability": {
+      "score": 3,
+      "rationale": "Expected delta and acceptance proof are explicit.",
+      "evidence": [
+        "`scripts/verify`가 계속 통과합니다.",
+        "벤치마크 명령 또는 스크립트가 clean checkout에서 실행 가능하며, 결과 출력이 lower-bound 판단에 필요한 수치와 환경 전제를 포함합니다.",
+        "benchmark lower bounds 문서가 측정 대상, 입력 규모, 통과 기준, 변동성 전제를 명시합니다.",
+        "V1 acceptance docs가 `gate-v1-cli-smoke`부터 `gate-v1-bench-docs-acceptance`까지 각 launch gate를 현재 evidence requirement와 검증 명령에 매핑합니다.",
+        "새 문서는 V1 단일 프로세스 Rust CLI 경계를 유지하고, 아직 검증되지 않은 성능 또는 기능 완료를 과장하지 않습니다."
+      ]
+    }
+  },
+  "low_metrics": [],
+  "constraint_blockers": [],
+  "artifact_mapping": {
+    "source": "inferred_current_plan_gap",
+    "blocker": "",
+    "blocker_reason": "",
+    "resolved_requirement_ids": [
+      "req-v1-benchmark-lower-bounds",
+      "req-v1-acceptance-docs"
+    ],
+    "resolved_gates": [
+      "gate-v1-bench-docs-acceptance"
+    ],
+    "explicit": {
+      "requirement_ids": [],
+      "launch_gates": [],
+      "valid_requirement_ids": [],
+      "valid_launch_gates": [],
+      "unknown_requirement_ids": [],
+      "unknown_launch_gates": [],
+      "resolved_requirement_ids": [],
+      "resolved_gates": [],
+      "present": false
+    },
+    "inferred": {
+      "current_plan_gap_id": "gap-v1-bench-docs-acceptance",
+      "launch_gates": [
+        "gate-v1-bench-docs-acceptance"
+      ],
+      "requirement_ids": [
+        "req-v1-benchmark-lower-bounds",
+        "req-v1-acceptance-docs"
+      ],
+      "valid": true
+    },
+    "artifact_contract": {
+      "requirement_ids": [
+        "req-v1-acceptance-docs",
+        "req-v1-benchmark-lower-bounds",
+        "req-v1-cli-dispatch-tests",
+        "req-v1-cli-help-smoke",
+        "req-v1-crash-matrix-output",
+        "req-v1-db-check-proof",
+        "req-v1-differential-property-proof",
+        "req-v1-page-storage-restart",
+        "req-v1-primary-index-proof",
+        "req-v1-record-format-doc",
+        "req-v1-secondary-index-proof",
+        "req-v1-sql-exec-examples",
+        "req-v1-wal-recovery-proof"
+      ],
+      "launch_gates": [
+        "gate-v1-bench-docs-acceptance",
+        "gate-v1-cli-smoke",
+        "gate-v1-crash-testing",
+        "gate-v1-db-check-invariants",
+        "gate-v1-differential-property-tests",
+        "gate-v1-disk-page-storage",
+        "gate-v1-indexes",
+        "gate-v1-sql-schema-exec",
+        "gate-v1-transactions-wal-recovery"
+      ]
+    }
+  },
+  "repair_attempts": 0,
+  "final_disposition": "ready_for_handoff",
+  "evidence_gap_type": "",
+  "confidence_gap_reason": "",
+  "research_question": "",
+  "hypothesis_lineage": {
+    "objective_metric_id": "metric-v1-acceptance-evidence",
+    "current_plan_gap_id": "gap-v1-bench-docs-acceptance",
+    "target_boundary": "managed_repo"
+  },
+  "repairability": {
+    "repairable": false,
+    "reason": "already_ready",
+    "allowed_findings": [],
+    "blocked_findings": []
+  }
+}

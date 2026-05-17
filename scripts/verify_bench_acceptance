@@ -1,0 +1,291 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$repo_root"
+
+artifact_dir="target/bench_acceptance"
+artifact_path="$artifact_dir/v1-bench-docs-acceptance.json"
+artifact_contract_path="target/bench_acceptance/v1-bench-docs-acceptance.json"
+mkdir -p "$artifact_dir"
+
+row_count=1000
+warmup_iterations=1
+measured_iterations=3
+insert_threshold=25
+select_threshold=50
+command_text="cargo run --quiet --bin db -- exec"
+evidence_id="evidence-v1-benchmark-lower-bounds"
+
+require_tool() {
+  if ! command -v "$1" >/dev/null 2>&1; then
+    echo "error: required tool not found: $1" >&2
+    exit 1
+  fi
+}
+
+require_tool cargo
+require_tool rustc
+require_tool awk
+require_tool git
+
+now_ns() {
+  local value
+  value="$(date +%s%N 2>/dev/null || true)"
+  if [[ "$value" =~ ^[0-9]+$ ]] && [[ "$value" != *N ]]; then
+    printf '%s\n' "$value"
+    return
+  fi
+  require_tool python3
+  python3 - <<'PY'
+import time
+print(time.time_ns())
+PY
+}
+
+json_escape() {
+  printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
+}
+
+run_db_exec() {
+  local db_path="$1"
+  local sql="$2"
+  local stderr_path
+  stderr_path="$(mktemp)"
+  set +e
+  RUN_STDOUT="$(cargo run --quiet --bin db -- exec "$db_path" "$sql" 2>"$stderr_path")"
+  RUN_STATUS=$?
+  set -e
+  RUN_STDERR="$(cat "$stderr_path")"
+  rm -f "$stderr_path"
+}
+
+build_insert_sql() {
+  local sql="CREATE TABLE bench_items(id INT, value TEXT);"
+  local id
+  local value
+  for id in $(seq 1 "$row_count"); do
+    printf -v value "value-%04d" "$id"
+    sql+=" INSERT INTO bench_items VALUES ($id, '$value');"
+  done
+  printf '%s' "$sql"
+}
+
+insert_sql="$(build_insert_sql)"
+select_sql="SELECT * FROM bench_items;"
+
+assert_success_empty_stderr() {
+  local scenario="$1"
+  if [[ "$RUN_STATUS" -ne 0 ]]; then
+    echo "error: $scenario exited with status $RUN_STATUS" >&2
+    echo "$RUN_STDERR" >&2
+    exit 1
+  fi
+  if [[ -n "$RUN_STDERR" ]]; then
+    echo "error: $scenario wrote stderr" >&2
+    echo "$RUN_STDERR" >&2
+    exit 1
+  fi
+}
+
+assert_select_output() {
+  local line_count
+  local first_row
+  local last_row
+  line_count="$(printf '%s' "$RUN_STDOUT" | awk 'END { print NR }')"
+  first_row="$(printf '%s' "$RUN_STDOUT" | sed -n '2p')"
+  last_row="$(printf '%s' "$RUN_STDOUT" | sed -n '$p')"
+
+  if [[ "$(printf '%s' "$RUN_STDOUT" | sed -n '1p')" != "id|value" ]]; then
+    echo "error: bench_reopen_select_1k stdout header mismatch" >&2
+    exit 1
+  fi
+  if [[ "$line_count" -ne $((row_count + 1)) ]]; then
+    echo "error: bench_reopen_select_1k expected $((row_count + 1)) lines, got $line_count" >&2
+    exit 1
+  fi
+  if [[ "$first_row" != "1|value-0001" ]]; then
+    echo "error: bench_reopen_select_1k first row mismatch: $first_row" >&2
+    exit 1
+  fi
+  if [[ "$last_row" != "1000|value-1000" ]]; then
+    echo "error: bench_reopen_select_1k last row mismatch: $last_row" >&2
+    exit 1
+  fi
+}
+
+rows_per_second() {
+  local duration_ms="$1"
+  awk -v rows="$row_count" -v ms="$duration_ms" 'BEGIN { printf "%.3f", rows * 1000 / ms }'
+}
+
+meets_threshold() {
+  local observed="$1"
+  local threshold="$2"
+  awk -v observed="$observed" -v threshold="$threshold" 'BEGIN { exit !(observed >= threshold) }'
+}
+
+make_temp_db() {
+  local temp_dir
+  temp_dir="$(mktemp -d "${TMPDIR:-/tmp}/db-bench-acceptance.XXXXXX")"
+  printf '%s/bench.db\n' "$temp_dir"
+}
+
+cleanup_temp_db() {
+  local db_path="$1"
+  rm -rf "$(dirname "$db_path")"
+}
+
+run_insert_iteration() {
+  local iteration="$1"
+  local measured="$2"
+  local db_path
+  local start_ns
+  local end_ns
+  local duration_ms
+  local rps
+  db_path="$(make_temp_db)"
+  start_ns="$(now_ns)"
+  run_db_exec "$db_path" "$insert_sql"
+  end_ns="$(now_ns)"
+  assert_success_empty_stderr "bench_insert_1k"
+  cleanup_temp_db "$db_path"
+
+  duration_ms="$(( (end_ns - start_ns) / 1000000 ))"
+  if [[ "$duration_ms" -lt 1 ]]; then
+    duration_ms=1
+  fi
+  rps="$(rows_per_second "$duration_ms")"
+  if [[ "$measured" == "yes" ]]; then
+    INSERT_ITERATIONS_JSON+="${INSERT_ITERATIONS_JSON:+,}{\"iteration\":$iteration,\"duration_ms\":$duration_ms,\"rows_per_second\":$rps,\"exit_status\":$RUN_STATUS}"
+    if [[ -z "$INSERT_MIN_RPS" ]] || meets_threshold "$INSERT_MIN_RPS" "$rps"; then
+      INSERT_MIN_RPS="$rps"
+    fi
+  fi
+}
+
+run_select_iteration() {
+  local iteration="$1"
+  local measured="$2"
+  local db_path
+  local start_ns
+  local end_ns
+  local duration_ms
+  local rps
+  db_path="$(make_temp_db)"
+  run_db_exec "$db_path" "$insert_sql"
+  assert_success_empty_stderr "bench_reopen_select_1k setup"
+
+  start_ns="$(now_ns)"
+  run_db_exec "$db_path" "$select_sql"
+  end_ns="$(now_ns)"
+  assert_success_empty_stderr "bench_reopen_select_1k"
+  assert_select_output
+  cleanup_temp_db "$db_path"
+
+  duration_ms="$(( (end_ns - start_ns) / 1000000 ))"
+  if [[ "$duration_ms" -lt 1 ]]; then
+    duration_ms=1
+  fi
+  rps="$(rows_per_second "$duration_ms")"
+  if [[ "$measured" == "yes" ]]; then
+    SELECT_ITERATIONS_JSON+="${SELECT_ITERATIONS_JSON:+,}{\"iteration\":$iteration,\"duration_ms\":$duration_ms,\"rows_per_second\":$rps,\"exit_status\":$RUN_STATUS}"
+    if [[ -z "$SELECT_MIN_RPS" ]] || meets_threshold "$SELECT_MIN_RPS" "$rps"; then
+      SELECT_MIN_RPS="$rps"
+    fi
+  fi
+}
+
+INSERT_ITERATIONS_JSON=""
+SELECT_ITERATIONS_JSON=""
+INSERT_MIN_RPS=""
+SELECT_MIN_RPS=""
+
+run_insert_iteration 0 no
+for iteration in $(seq 1 "$measured_iterations"); do
+  run_insert_iteration "$iteration" yes
+done
+
+run_select_iteration 0 no
+for iteration in $(seq 1 "$measured_iterations"); do
+  run_select_iteration "$iteration" yes
+done
+
+insert_passed=false
+select_passed=false
+overall_passed=false
+if meets_threshold "$INSERT_MIN_RPS" "$insert_threshold"; then
+  insert_passed=true
+fi
+if meets_threshold "$SELECT_MIN_RPS" "$select_threshold"; then
+  select_passed=true
+fi
+if [[ "$insert_passed" == "true" && "$select_passed" == "true" ]]; then
+  overall_passed=true
+fi
+
+repo_sha="$(git rev-parse HEAD)"
+created_at="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+os_name="$(uname -s)"
+arch_name="$(uname -m)"
+rustc_version="$(rustc --version)"
+cargo_version="$(cargo --version)"
+logical_cpu_count="$(getconf _NPROCESSORS_ONLN 2>/dev/null || sysctl -n hw.logicalcpu 2>/dev/null || printf 'unknown')"
+cpu_model="$(sysctl -n machdep.cpu.brand_string 2>/dev/null || awk -F: '/model name/ { sub(/^ /, "", $2); print $2; exit }' /proc/cpuinfo 2>/dev/null || true)"
+
+cat >"$artifact_path" <<JSON
+{
+  "schema_version": 1,
+  "evidence_id": "$evidence_id",
+  "repo_sha": "$(json_escape "$repo_sha")",
+  "created_at": "$(json_escape "$created_at")",
+  "command": "$command_text",
+  "environment": {
+    "os": "$(json_escape "$os_name")",
+    "architecture": "$(json_escape "$arch_name")",
+    "rustc_version": "$(json_escape "$rustc_version")",
+    "cargo_version": "$(json_escape "$cargo_version")",
+    "logical_cpu_count": "$(json_escape "$logical_cpu_count")",
+    "cpu_model": "$(json_escape "$cpu_model")"
+  },
+  "policy": {
+    "row_count": $row_count,
+    "warmup_iterations": $warmup_iterations,
+    "measured_iterations": $measured_iterations,
+    "fresh_database_per_iteration": true,
+    "pass_rule": "every measured iteration must meet or exceed the threshold; observed_min_rows_per_second is authoritative",
+    "db_bench_cli_used": false
+  },
+  "scenarios": [
+    {
+      "id": "bench_insert_1k",
+      "row_count": $row_count,
+      "warmup_iterations": $warmup_iterations,
+      "measured_iterations": $measured_iterations,
+      "threshold_rows_per_second": $insert_threshold,
+      "observed_min_rows_per_second": $INSERT_MIN_RPS,
+      "iterations": [$INSERT_ITERATIONS_JSON],
+      "passed": $insert_passed
+    },
+    {
+      "id": "bench_reopen_select_1k",
+      "row_count": $row_count,
+      "warmup_iterations": $warmup_iterations,
+      "measured_iterations": $measured_iterations,
+      "threshold_rows_per_second": $select_threshold,
+      "observed_min_rows_per_second": $SELECT_MIN_RPS,
+      "iterations": [$SELECT_ITERATIONS_JSON],
+      "passed": $select_passed
+    }
+  ],
+  "overall_passed": $overall_passed
+}
+JSON
+
+printf 'benchmark acceptance: insert_min=%s rows/s threshold=%s passed=%s; select_min=%s rows/s threshold=%s passed=%s; artifact=%s\n' \
+  "$INSERT_MIN_RPS" "$insert_threshold" "$insert_passed" \
+  "$SELECT_MIN_RPS" "$select_threshold" "$select_passed" "$artifact_path"
+
+if [[ "$overall_passed" != "true" ]]; then
+  exit 1
+fi
