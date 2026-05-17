@@ -1,0 +1,120 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$repo_root"
+
+report="target/crash_matrix/crash_matrix_report.md"
+run_id="${CRASH_MATRIX_RUN_ID:-verify-crash-matrix-$(date -u +%Y%m%dT%H%M%SZ)-$$}"
+export CRASH_MATRIX_RUN_ID="$run_id"
+
+cargo test --test crash_matrix
+
+if [[ ! -f "$report" ]]; then
+  echo "missing crash matrix report: $report" >&2
+  exit 1
+fi
+
+python3 - "$report" "$run_id" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+report_path = Path(sys.argv[1])
+run_id = sys.argv[2]
+report = report_path.read_text()
+
+expected_rows = {
+    "CM-001": "id|name\n1|seed\n",
+    "CM-002": "id|name\n1|seed\n",
+    "CM-003": "id|name\n1|seed\n",
+    "CM-004": "id|name\n1|seed\n2|committed_wal\n",
+    "CM-005": "id|name\n1|seed\n2|recover_a\n3|recover_b\n",
+    "CM-006": "id|name\n1|seed\n2|committed_before_tail\n",
+}
+
+wal_assertions = {
+    "CM-001": "WAL sidecar absent or empty; file header/version and seed data unchanged",
+    "CM-002": "incomplete WAL header or payload tail is ignored/truncated without panic",
+    "CM-003": "commit marker absent maps to WAL_STATE_ROLLED_BACK 0x02 and is not replayed",
+    "CM-004": "committed WAL replay is idempotent across first and second reopen",
+    "CM-005": "interrupted recovery re-entry applies every committed frame exactly once",
+    "CM-006": "committed WAL prefix is replayed and incomplete/invalid-length tail is ignored without CLI output change",
+}
+
+def validate(text: str) -> None:
+    if f"- run id: {run_id}\n" not in text:
+        raise ValueError(f"missing current run id in report header: {run_id}")
+    if "- command: cargo test --test crash_matrix\n" not in text:
+        raise ValueError("missing command provenance in report header")
+
+    blocks = {
+        match.group(1): match.group(0)
+        for match in re.finditer(r"^## (CM-\d{3}) .+?(?=^## CM-\d{3} |\Z)", text, re.M | re.S)
+    }
+
+    for case_id, rows in expected_rows.items():
+        block = blocks.get(case_id)
+        if block is None:
+            raise ValueError(f"missing case block: {case_id}")
+
+        evidence_id = f"crash-matrix-case-{case_id}"
+        required_literals = [
+            f"- run id: {run_id}",
+            f"- required evidence id: {evidence_id}",
+            '- reopen command: db exec <db_path> "SELECT * FROM items;"',
+            f"- WAL/file-format assertion result: PASS - {wal_assertions[case_id]}",
+            "- exit status: Some(0)",
+        ]
+        for literal in required_literals:
+            if literal not in block:
+                raise ValueError(f"missing required literal for {case_id}: {literal}")
+
+        expected_match = re.search(r"- expected visible rows:\n\n```text\n(.*?)```", block, re.S)
+        actual_match = re.search(r"- actual visible rows:\n\n```text\n(.*?)```", block, re.S)
+        if expected_match is None:
+            raise ValueError(f"missing expected rows fence for {case_id}")
+        if actual_match is None:
+            raise ValueError(f"missing actual rows fence for {case_id}")
+        if expected_match.group(1) != rows:
+            raise ValueError(f"wrong expected rows for {case_id}: {expected_match.group(1)!r}")
+        if actual_match.group(1) != rows:
+            raise ValueError(f"wrong actual rows for {case_id}: {actual_match.group(1)!r}")
+
+    cm004 = blocks["CM-004"]
+    for literal in [
+        "first reopen exit status: Some(0)",
+        "second reopen exit status: Some(0)",
+        'first reopen actual visible rows: "id|name\\n1|seed\\n2|committed_wal\\n"',
+        'second reopen actual visible rows: "id|name\\n1|seed\\n2|committed_wal\\n"',
+    ]:
+        if literal not in cm004:
+            raise ValueError(f"missing CM-004 repeated-open evidence: {literal}")
+
+    cm005 = blocks["CM-005"]
+    for literal in [
+        "durable setup before crash injection: seed_committed_one only",
+        "interrupted reopen exit status after first replay apply: Some(101)",
+        "first recovery reopen exit status: Some(0)",
+        "second recovery reopen exit status: Some(0)",
+        'first recovery actual visible rows: "id|name\\n1|seed\\n2|recover_a\\n3|recover_b\\n"',
+        'second recovery actual visible rows: "id|name\\n1|seed\\n2|recover_a\\n3|recover_b\\n"',
+    ]:
+        if literal not in cm005:
+            raise ValueError(f"missing CM-005 interruption/retry evidence: {literal}")
+
+try:
+    validate(report)
+except ValueError as error:
+    print(error, file=sys.stderr)
+    sys.exit(1)
+
+mutated = report.replace("2|recover_a", "2|wrong_recover_a", 1)
+try:
+    validate(mutated)
+except ValueError:
+    pass
+else:
+    print("validator self-check failed to reject corrupted CM-005 row evidence", file=sys.stderr)
+    sys.exit(1)
+PY

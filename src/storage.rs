@@ -183,6 +183,7 @@ fn replay_wal(path: &Path) -> Result<(), StorageError> {
     let bytes = std::fs::read(&wal_path)?;
     let mut offset = 0usize;
     let mut truncate_to = None;
+    let mut replay_applies = 0u64;
     while offset < bytes.len() {
         let remaining = bytes.len() - offset;
         if remaining < WAL_HEADER_LEN {
@@ -228,6 +229,8 @@ fn replay_wal(path: &Path) -> Result<(), StorageError> {
             match current_record_count.cmp(&record_count_before) {
                 std::cmp::Ordering::Equal => {
                     append_record_to_file(path, &frame[WAL_HEADER_LEN..])?;
+                    replay_applies = replay_applies.checked_add(1).ok_or(StorageError::Io)?;
+                    maybe_interrupt_after_wal_replay_apply(replay_applies);
                 }
                 std::cmp::Ordering::Less => return Err(StorageError::CorruptRecordLength),
                 std::cmp::Ordering::Greater => {}
@@ -247,6 +250,18 @@ fn replay_wal(path: &Path) -> Result<(), StorageError> {
     }
 
     Ok(())
+}
+
+fn maybe_interrupt_after_wal_replay_apply(replay_applies: u64) {
+    let Ok(limit) = std::env::var("PDB_CRASH_AFTER_WAL_REPLAY_APPLIES") else {
+        return;
+    };
+    let Ok(limit) = limit.parse::<u64>() else {
+        return;
+    };
+    if limit == replay_applies {
+        std::process::exit(101);
+    }
 }
 
 fn append_wal_frame(
