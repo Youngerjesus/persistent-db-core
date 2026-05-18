@@ -19,3 +19,7 @@
 - Added the `db check` invariant milestone: existing database files can now be validated for page readability, SQL catalog/row consistency, primary-index rebuildability, WAL replay consistency, and stable open/read error behavior.
 - Added SQLite-backed differential/property coverage for the supported SQL subset with deterministic seed replay, duplicate-key and missing-lookup checks, ordered scan comparison, and task-specific verification.
 - Added the V1 benchmark and acceptance documentation milestone: `scripts/verify_bench_acceptance` records deterministic lower-bound evidence, and the V1 acceptance guide maps launch gates to evidence and explicit blockers.
+
+## 2026-05-19
+
+- Added the secondary-index milestone: `CREATE INDEX` now persists `INT` secondary indexes, uses indexed equality and inclusive bounded range paths with deterministic ordering, survives reopen/WAL replay, and is covered by `db check` invariant validation.

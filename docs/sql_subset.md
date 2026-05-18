@@ -9,9 +9,12 @@ order.
 ```text
 CREATE TABLE <table_name> (<column_name> INT|TEXT[, <column_name> INT|TEXT]*);
 CREATE TABLE <table_name> (<column_name> INT PRIMARY KEY[, <column_name> INT|TEXT]*);
+CREATE INDEX <index_name> ON <table_name>(<integer_column>);
 INSERT INTO <table_name> VALUES (<value>[, <value>]*);
 SELECT * FROM <table_name>;
 SELECT * FROM <table_name> WHERE <primary_key_column> = <int_value>;
+SELECT * FROM <table_name> WHERE <indexed_int_column> = <int_value>;
+SELECT * FROM <table_name> WHERE <indexed_int_column> BETWEEN <low_int> AND <high_int>;
 ```
 
 Keywords compare ASCII case-insensitively. Identifiers must match
@@ -22,9 +25,10 @@ integers. `TEXT` values are UTF-8 strings inside single quotes; escape
 sequences, embedded single quotes, `|`, newline, and carriage return are not
 supported.
 
-This slice supports at most one `INT PRIMARY KEY` column per table. `TEXT
-PRIMARY KEY`, multiple primary-key columns, non-primary-key predicates, range
-predicates, and non-integer predicate values are rejected.
+This slice supports at most one `INT PRIMARY KEY` column per table. Secondary
+indexes are explicit and support only `INT` columns. `TEXT PRIMARY KEY`,
+multiple primary-key columns, non-indexed non-primary-key predicates, range
+predicates before `CREATE INDEX`, and non-integer predicate values are rejected.
 
 Projection, general `WHERE`, `ORDER BY`, `JOIN`, `UPDATE`, `DELETE`, defaults,
 `NULL`, quoted identifiers, and transactions are out of scope.
@@ -36,6 +40,12 @@ tables without a primary key, rows print in successful `INSERT` append order.
 For tables with an `INT PRIMARY KEY`, rows print in ascending primary-key order.
 `SELECT * FROM <table_name> WHERE <primary_key_column> = <int_value>;` prints
 the header and the matching row, or only the header when the key is missing.
+After `CREATE INDEX`, equality and `BETWEEN` predicates on the indexed `INT`
+column use the secondary index. `BETWEEN` boundaries are inclusive. Secondary
+results are ordered by secondary key ascending, then by primary-key value for
+primary-key tables or durable row insertion order for tables without a primary
+key. A range with `low > high` prints the header only through the secondary
+range path.
 Fields are delimited with `|`, and each output line ends with `\n`. Empty tables
 print only the header. Multiple `SELECT` statements repeat headers without blank
 lines, separators, or count lines.
@@ -51,7 +61,7 @@ Unsupported SQL exits `2`, writes empty stdout, and uses this stderr:
 
 ```text
 error: unsupported SQL statement: SELECT id FROM users;
-hint: supported SQL subset: CREATE TABLE, INSERT INTO ... VALUES, SELECT * FROM ..., SELECT * FROM ... WHERE <primary_key> = <int>;
+hint: supported SQL subset is documented in docs/sql_subset.md.
 ```
 
 Malformed SQL exits `2`, writes empty stdout, and uses this stderr:
@@ -75,6 +85,13 @@ Case-variant duplicate table input reports the new input spelling, such as
 ```text
 error: SQL semantic error: table not found: missing
 hint: create the table before INSERT or SELECT.
+```
+
+`CREATE INDEX` against a missing table uses:
+
+```text
+error: SQL semantic error: table not found: missing
+hint: create the table before INSERT, SELECT, or CREATE INDEX.
 ```
 
 ```text
@@ -105,6 +122,21 @@ error: SQL semantic error: primary key column must be INT: id
 hint: this SQL slice supports one INT PRIMARY KEY column per table.
 ```
 
+```text
+error: SQL semantic error: column not found for index idx_users_age: age
+hint: create the index on an existing table column.
+```
+
+```text
+error: SQL semantic error: secondary index column must be INT: name
+hint: this SQL slice supports secondary indexes only on INT columns.
+```
+
+```text
+error: SQL semantic error: index already exists: idx_users_age
+hint: use a new index name for CREATE INDEX in this database.
+```
+
 Invalid SQL logical records exit `1`, write empty stdout, and use this stderr:
 
 ```text
@@ -123,6 +155,9 @@ by a one-byte record kind:
 ```text
 C  catalog record
 R  row record
+E  secondary-index backfill entry record
+X  committed secondary-index metadata record
+I  atomic indexed row record
 ```
 
 Catalog payload body:
@@ -156,6 +191,55 @@ repeat value_count:
   value UTF-8 bytes
 ```
 
+Committed secondary-index metadata payload body:
+
+```text
+PDBSQL1\0
+X
+u64 build_id little-endian
+u16 index_name_len little-endian
+index_name UTF-8 bytes
+u16 table_name_len little-endian
+table_name UTF-8 bytes
+u16 indexed_column little-endian
+u8 tie_break_mode: P for primary-key value, R for row insertion order
+```
+
+Secondary-index backfill entry payload body:
+
+```text
+PDBSQL1\0
+E
+u64 build_id little-endian
+u16 index_name_len little-endian
+index_name UTF-8 bytes
+i64 indexed_key little-endian
+i64 tie_break little-endian
+u64 row_position little-endian
+```
+
+Atomic indexed row payload body:
+
+```text
+PDBSQL1\0
+I
+u16 table_name_len little-endian
+table_name UTF-8 bytes
+u16 value_count little-endian
+repeat value_count:
+  u8 type tag: I for INT, T for TEXT
+  u32 value_len little-endian
+  value UTF-8 bytes
+u16 embedded_entry_count little-endian
+repeat embedded_entry_count:
+  u64 index_build_id little-endian
+  u16 index_name_len little-endian
+  index_name UTF-8 bytes
+  i64 indexed_key little-endian
+  i64 tie_break little-endian
+  u64 row_position little-endian
+```
+
 For row values, `INT` payload bytes are the canonical decimal UTF-8 rendering
 of the parsed signed 64-bit integer. For example, SQL literal `-0` is stored and
 read back as `0`. `TEXT` payload bytes are the literal text bytes inside the
@@ -177,4 +261,10 @@ If durable row records for a primary-key table contain duplicate primary-key
 values, non-canonical integer values, output-breaking text, unknown type tags,
 or other corrupt SQL logical-record data, `db exec` fails through the existing
 invalid SQL storage record error. There is no missing-index-metadata failure
-mode in this slice because no separate index metadata is stored.
+mode for primary indexes because no separate primary-index metadata is stored.
+Secondary indexes use committed `X` metadata plus matching `E` backfill entries
+or embedded entries in `I` records. `CREATE INDEX` appends `E` records before
+the final `X` commit marker; orphan `E` records without matching committed
+metadata are ignored and can be retried with a fresh build id. After a table has
+committed secondary indexes, inserts use a single `I` record containing the row
+and all required embedded index entries, not `R` plus standalone `E`.

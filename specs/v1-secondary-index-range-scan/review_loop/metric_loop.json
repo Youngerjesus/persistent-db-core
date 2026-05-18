@@ -1,0 +1,365 @@
+{
+  "max_rounds": 3,
+  "max_repair_attempts": 2,
+  "threshold": 2,
+  "rounds": [
+    {
+      "round": 1,
+      "metrics": {
+        "objective_plan_gap_fit": {
+          "score": 3,
+          "rationale": "Candidate maps to both an objective metric and a current-plan gap.",
+          "evidence": [
+            "metric:metric-v1-query-correctness",
+            "gap:gap-v1-secondary-index-range-scan"
+          ]
+        },
+        "causal_evidence_strength": {
+          "score": 3,
+          "rationale": "Candidate has concrete evidence for the proposed intervention.",
+          "evidence": [
+            "`ssot/current-plan.md`는 `gap-v1-secondary-index-range-scan`을 `metric-v1-query-correctness`, `gate-v1-indexes`, expected target `REQ-7-create-index-must-create-disk-3b71a7dc`에 매핑한다.",
+            "`ssot/current-artifact.md`의 `REQ-7-create-index-must-create-disk-3b71a7dc`는 disk-backed secondary indexes, equality lookup, bounded range scan, ordering, persistence, query path use를 요구한다.",
+            "managed repo `work_queue/progress.md`는 `gap-v1-secondary-index-range-scan`을 `missing_evidence`로 두고, 다음 작은 handoff로 secondary indexes 또는 좁은 acceptance blocker를 제안한다.",
+            "managed repo history는 storage, SQL execution, primary index, WAL recovery, crash matrix, `db check`, differential/property, benchmark/docs baseline이 이미 추가되었음을 기록한다.",
+            "Queue Snapshot은 `[]`이고 Git Status는 `clean`이므로 active duplicate나 dirty worktree blocker가 없다.",
+            "autopilot/ssot/current-plan.md:36",
+            "autopilot/ssot/current-artifact.md:54",
+            "persistent-db-core_worktree/main/src/sql.rs:93",
+            "persistent-db-core_worktree/main/src/sql.rs:686",
+            "persistent-db-core_worktree/main/src/index.rs:4",
+            "persistent-db-core_worktree/main/docs/v1_acceptance.md:17",
+            "persistent-db-core_worktree/main/docs/cli_contract.md:198",
+            "persistent-db-core_worktree/main/work_queue/progress.md:15",
+            "Statement::SelectPrimaryKey",
+            "parse_select",
+            "execute_select_primary_key",
+            "PrimaryIndex",
+            "PrimaryIndex::get",
+            "PrimaryIndex::ordered_positions",
+            "autopilot/project_manager/tasks/tasks.json:666",
+            "autopilot/project_manager/tasks/tasks.json:706",
+            "autopilot/project_manager/tasks/tasks.json:728",
+            "persistent-db-core_worktree/main/specs/v1-primary-btree-index/spec.md:93",
+            "persistent-db-core_worktree/main/specs/v1-primary-btree-index/analysis_report.md:7",
+            "persistent-db-core_worktree/main/specs/v1-primary-btree-index/final_review.md:10"
+          ]
+        },
+        "handoff_verifiability": {
+          "score": 3,
+          "rationale": "Expected delta and acceptance proof are explicit.",
+          "evidence": [
+            "`db exec`가 `CREATE INDEX <name> ON <table>(<integer_column>)`를 지원하고 missing table, missing column, unsupported type, duplicate index 같은 정상 오류를 clear stderr와 non-zero exit로 처리한다.",
+            "secondary indexed INTEGER column에 대해 equality predicate와 `BETWEEN` bounded range scan이 expected rows와 deterministic ordering을 black-box CLI 또는 integration test로 검증한다.",
+            "secondary index metadata와 index contents가 database reopen 후에도 유지되고, 기존 primary index와 row-only table behavior가 regress되지 않는다.",
+            "검증 명령은 최소 `scripts/verify`와 focused secondary index test command를 포함하며, evidence는 `REQ-7-create-index-must-create-disk-3b71a7dc`에만 명시 매핑한다."
+          ]
+        }
+      },
+      "low_metrics": [],
+      "constraint_blockers": [],
+      "artifact_mapping": {
+        "source": "explicit_candidate",
+        "blocker": "",
+        "blocker_reason": "",
+        "resolved_requirement_ids": [
+          "REQ-7-create-index-must-create-disk-3b71a7dc"
+        ],
+        "resolved_gates": [
+          "gate-v1-indexes"
+        ],
+        "explicit": {
+          "requirement_ids": [
+            "REQ-7-create-index-must-create-disk-3b71a7dc"
+          ],
+          "launch_gates": [
+            "gate-v1-indexes"
+          ],
+          "valid_requirement_ids": [
+            "REQ-7-create-index-must-create-disk-3b71a7dc"
+          ],
+          "valid_launch_gates": [
+            "gate-v1-indexes"
+          ],
+          "unknown_requirement_ids": [],
+          "unknown_launch_gates": [],
+          "resolved_requirement_ids": [
+            "REQ-7-create-index-must-create-disk-3b71a7dc"
+          ],
+          "resolved_gates": [
+            "gate-v1-indexes"
+          ],
+          "present": true
+        },
+        "inferred": {
+          "current_plan_gap_id": "gap-v1-secondary-index-range-scan",
+          "launch_gates": [
+            "gate-v1-indexes"
+          ],
+          "requirement_ids": [
+            "REQ-7-implement-integer-primary-key-as-9c698e08",
+            "REQ-7-create-index-must-create-disk-3b71a7dc",
+            "REQ-7-insert-update-and-delete-must-997871f9",
+            "EVID-7-validate-index-invariants-for-uniqueness-2d153f8e"
+          ],
+          "valid": true
+        },
+        "artifact_contract": {
+          "requirement_ids": [
+            "EVID-10-db-check-must-validate-page-195c4e72",
+            "EVID-11-crash-tests-must-recover-check-95f2685f",
+            "EVID-12-use-sqlite-as-differential-oracle-e5469b45",
+            "EVID-13-include-seeded-property-tests-for-60ca360c",
+            "EVID-15-bug-diary-must-record-bug-53b961eb",
+            "EVID-15-require-architecture-storage-format-index-a575878f",
+            "EVID-16-1-black-box-cli-smoke-must-bcfdb1ab",
+            "EVID-16-2-persistence-acceptance-must-prove-committed-0cfc3d80",
+            "EVID-16-3-transaction-atomicity-acceptance-must-cover-dce6b35c",
+            "EVID-16-4-crash-recovery-matrix-must-run-c3aeada6",
+            "EVID-16-5-differential-acceptance-must-compare-generated-0177412b",
+            "EVID-16-6-property-acceptance-must-use-reproducible-f7331be6",
+            "EVID-16-7-performance-acceptance-must-run-db-9901b652",
+            "EVID-7-validate-index-invariants-for-uniqueness-2d153f8e",
+            "FAIL-14-5-reject-every-write-full-file-5bc3a2a9",
+            "FAIL-14-5-reject-performance-evidence-where-indexed-0b2ffef1",
+            "FAIL-18-automatic-v1-failure-for-data-7dee7832",
+            "FAIL-18-automatic-v1-failure-for-table-30284a6c",
+            "FAIL-18-automatic-v1-failure-if-all-e69ba9f4",
+            "FAIL-18-automatic-v1-failure-if-crash-df0385e6",
+            "FAIL-18-automatic-v1-failure-if-implementation-814892ba",
+            "FAIL-18-automatic-v1-failure-if-tests-4fc9e7e4",
+            "FAIL-3-1-unsupported-sql-must-fail-with-68a3ee08",
+            "FAIL-3-3-join-group-by-having-aggregation-89789c06",
+            "FAIL-4-reject-null-values-because-null-7cff87ec",
+            "FAIL-5-syntax-errors-and-unsupported-sql-983b9754",
+            "FAIL-6-reject-memory-only-dump-at-fd82a296",
+            "FAIL-6-reject-whole-database-file-rewrite-bebf73bb",
+            "METRIC-14-1-benchmark-dataset-must-contain-100000-7052d6fb",
+            "METRIC-14-2-benchmark-suite-must-include-sequential-7da5205a",
+            "METRIC-14-3-performance-report-must-include-elapsed-eca58d49",
+            "METRIC-14-4-indexed-equality-lookup-must-be-609f5237",
+            "METRIC-14-4-recovery-must-be-proportional-to-8c0f9dd5",
+            "REQ-10-provide-db-init-db-exec-4ba947a9",
+            "REQ-11-run-workloads-in-a-child-1cc228f3",
+            "REQ-3-1-support-create-table-create-index-578fc989",
+            "REQ-3-2-support-equality-comparison-and-between-fcf162bb",
+            "REQ-4-support-signed-64-bit-integer-e64725e8",
+            "REQ-4-support-utf-8-text-values-3f18fad1",
+            "REQ-5-return-clear-db-check-or-c4bdd9af",
+            "REQ-5-return-clear-normal-operation-errors-c2e93c70",
+            "REQ-6-data-must-survive-process-restart-0471a233",
+            "REQ-6-store-data-in-a-disk-ad3ffc4e",
+            "REQ-7-create-index-must-create-disk-3b71a7dc",
+            "REQ-7-implement-integer-primary-key-as-9c698e08",
+            "REQ-7-insert-update-and-delete-must-997871f9",
+            "REQ-8-begin-commit-and-rollback-provide-44e7901f",
+            "REQ-8-committed-writes-survive-crash-and-35caf667",
+            "REQ-9-checkpoint-or-log-truncation-must-d633d286",
+            "REQ-9-provide-wal-or-equivalent-write-80297892",
+            "REQ-9-recovery-must-be-idempotent-and-300531dc"
+          ],
+          "launch_gates": [
+            "gate-v1-bench-docs-acceptance",
+            "gate-v1-cli-smoke",
+            "gate-v1-crash-testing",
+            "gate-v1-db-check-invariants",
+            "gate-v1-differential-property-tests",
+            "gate-v1-disk-page-storage",
+            "gate-v1-indexes",
+            "gate-v1-sql-schema-exec",
+            "gate-v1-transactions-wal-recovery"
+          ]
+        }
+      },
+      "feedback": [],
+      "repair": {
+        "attempted": false,
+        "changed": false,
+        "changes": [],
+        "summary": "No repair needed."
+      }
+    }
+  ],
+  "final_metrics": {
+    "objective_plan_gap_fit": {
+      "score": 3,
+      "rationale": "Candidate maps to both an objective metric and a current-plan gap.",
+      "evidence": [
+        "metric:metric-v1-query-correctness",
+        "gap:gap-v1-secondary-index-range-scan"
+      ]
+    },
+    "causal_evidence_strength": {
+      "score": 3,
+      "rationale": "Candidate has concrete evidence for the proposed intervention.",
+      "evidence": [
+        "`ssot/current-plan.md`는 `gap-v1-secondary-index-range-scan`을 `metric-v1-query-correctness`, `gate-v1-indexes`, expected target `REQ-7-create-index-must-create-disk-3b71a7dc`에 매핑한다.",
+        "`ssot/current-artifact.md`의 `REQ-7-create-index-must-create-disk-3b71a7dc`는 disk-backed secondary indexes, equality lookup, bounded range scan, ordering, persistence, query path use를 요구한다.",
+        "managed repo `work_queue/progress.md`는 `gap-v1-secondary-index-range-scan`을 `missing_evidence`로 두고, 다음 작은 handoff로 secondary indexes 또는 좁은 acceptance blocker를 제안한다.",
+        "managed repo history는 storage, SQL execution, primary index, WAL recovery, crash matrix, `db check`, differential/property, benchmark/docs baseline이 이미 추가되었음을 기록한다.",
+        "Queue Snapshot은 `[]`이고 Git Status는 `clean`이므로 active duplicate나 dirty worktree blocker가 없다.",
+        "autopilot/ssot/current-plan.md:36",
+        "autopilot/ssot/current-artifact.md:54",
+        "persistent-db-core_worktree/main/src/sql.rs:93",
+        "persistent-db-core_worktree/main/src/sql.rs:686",
+        "persistent-db-core_worktree/main/src/index.rs:4",
+        "persistent-db-core_worktree/main/docs/v1_acceptance.md:17",
+        "persistent-db-core_worktree/main/docs/cli_contract.md:198",
+        "persistent-db-core_worktree/main/work_queue/progress.md:15",
+        "Statement::SelectPrimaryKey",
+        "parse_select",
+        "execute_select_primary_key",
+        "PrimaryIndex",
+        "PrimaryIndex::get",
+        "PrimaryIndex::ordered_positions",
+        "autopilot/project_manager/tasks/tasks.json:666",
+        "autopilot/project_manager/tasks/tasks.json:706",
+        "autopilot/project_manager/tasks/tasks.json:728",
+        "persistent-db-core_worktree/main/specs/v1-primary-btree-index/spec.md:93",
+        "persistent-db-core_worktree/main/specs/v1-primary-btree-index/analysis_report.md:7",
+        "persistent-db-core_worktree/main/specs/v1-primary-btree-index/final_review.md:10"
+      ]
+    },
+    "handoff_verifiability": {
+      "score": 3,
+      "rationale": "Expected delta and acceptance proof are explicit.",
+      "evidence": [
+        "`db exec`가 `CREATE INDEX <name> ON <table>(<integer_column>)`를 지원하고 missing table, missing column, unsupported type, duplicate index 같은 정상 오류를 clear stderr와 non-zero exit로 처리한다.",
+        "secondary indexed INTEGER column에 대해 equality predicate와 `BETWEEN` bounded range scan이 expected rows와 deterministic ordering을 black-box CLI 또는 integration test로 검증한다.",
+        "secondary index metadata와 index contents가 database reopen 후에도 유지되고, 기존 primary index와 row-only table behavior가 regress되지 않는다.",
+        "검증 명령은 최소 `scripts/verify`와 focused secondary index test command를 포함하며, evidence는 `REQ-7-create-index-must-create-disk-3b71a7dc`에만 명시 매핑한다."
+      ]
+    }
+  },
+  "low_metrics": [],
+  "constraint_blockers": [],
+  "artifact_mapping": {
+    "source": "explicit_candidate",
+    "blocker": "",
+    "blocker_reason": "",
+    "resolved_requirement_ids": [
+      "REQ-7-create-index-must-create-disk-3b71a7dc"
+    ],
+    "resolved_gates": [
+      "gate-v1-indexes"
+    ],
+    "explicit": {
+      "requirement_ids": [
+        "REQ-7-create-index-must-create-disk-3b71a7dc"
+      ],
+      "launch_gates": [
+        "gate-v1-indexes"
+      ],
+      "valid_requirement_ids": [
+        "REQ-7-create-index-must-create-disk-3b71a7dc"
+      ],
+      "valid_launch_gates": [
+        "gate-v1-indexes"
+      ],
+      "unknown_requirement_ids": [],
+      "unknown_launch_gates": [],
+      "resolved_requirement_ids": [
+        "REQ-7-create-index-must-create-disk-3b71a7dc"
+      ],
+      "resolved_gates": [
+        "gate-v1-indexes"
+      ],
+      "present": true
+    },
+    "inferred": {
+      "current_plan_gap_id": "gap-v1-secondary-index-range-scan",
+      "launch_gates": [
+        "gate-v1-indexes"
+      ],
+      "requirement_ids": [
+        "REQ-7-implement-integer-primary-key-as-9c698e08",
+        "REQ-7-create-index-must-create-disk-3b71a7dc",
+        "REQ-7-insert-update-and-delete-must-997871f9",
+        "EVID-7-validate-index-invariants-for-uniqueness-2d153f8e"
+      ],
+      "valid": true
+    },
+    "artifact_contract": {
+      "requirement_ids": [
+        "EVID-10-db-check-must-validate-page-195c4e72",
+        "EVID-11-crash-tests-must-recover-check-95f2685f",
+        "EVID-12-use-sqlite-as-differential-oracle-e5469b45",
+        "EVID-13-include-seeded-property-tests-for-60ca360c",
+        "EVID-15-bug-diary-must-record-bug-53b961eb",
+        "EVID-15-require-architecture-storage-format-index-a575878f",
+        "EVID-16-1-black-box-cli-smoke-must-bcfdb1ab",
+        "EVID-16-2-persistence-acceptance-must-prove-committed-0cfc3d80",
+        "EVID-16-3-transaction-atomicity-acceptance-must-cover-dce6b35c",
+        "EVID-16-4-crash-recovery-matrix-must-run-c3aeada6",
+        "EVID-16-5-differential-acceptance-must-compare-generated-0177412b",
+        "EVID-16-6-property-acceptance-must-use-reproducible-f7331be6",
+        "EVID-16-7-performance-acceptance-must-run-db-9901b652",
+        "EVID-7-validate-index-invariants-for-uniqueness-2d153f8e",
+        "FAIL-14-5-reject-every-write-full-file-5bc3a2a9",
+        "FAIL-14-5-reject-performance-evidence-where-indexed-0b2ffef1",
+        "FAIL-18-automatic-v1-failure-for-data-7dee7832",
+        "FAIL-18-automatic-v1-failure-for-table-30284a6c",
+        "FAIL-18-automatic-v1-failure-if-all-e69ba9f4",
+        "FAIL-18-automatic-v1-failure-if-crash-df0385e6",
+        "FAIL-18-automatic-v1-failure-if-implementation-814892ba",
+        "FAIL-18-automatic-v1-failure-if-tests-4fc9e7e4",
+        "FAIL-3-1-unsupported-sql-must-fail-with-68a3ee08",
+        "FAIL-3-3-join-group-by-having-aggregation-89789c06",
+        "FAIL-4-reject-null-values-because-null-7cff87ec",
+        "FAIL-5-syntax-errors-and-unsupported-sql-983b9754",
+        "FAIL-6-reject-memory-only-dump-at-fd82a296",
+        "FAIL-6-reject-whole-database-file-rewrite-bebf73bb",
+        "METRIC-14-1-benchmark-dataset-must-contain-100000-7052d6fb",
+        "METRIC-14-2-benchmark-suite-must-include-sequential-7da5205a",
+        "METRIC-14-3-performance-report-must-include-elapsed-eca58d49",
+        "METRIC-14-4-indexed-equality-lookup-must-be-609f5237",
+        "METRIC-14-4-recovery-must-be-proportional-to-8c0f9dd5",
+        "REQ-10-provide-db-init-db-exec-4ba947a9",
+        "REQ-11-run-workloads-in-a-child-1cc228f3",
+        "REQ-3-1-support-create-table-create-index-578fc989",
+        "REQ-3-2-support-equality-comparison-and-between-fcf162bb",
+        "REQ-4-support-signed-64-bit-integer-e64725e8",
+        "REQ-4-support-utf-8-text-values-3f18fad1",
+        "REQ-5-return-clear-db-check-or-c4bdd9af",
+        "REQ-5-return-clear-normal-operation-errors-c2e93c70",
+        "REQ-6-data-must-survive-process-restart-0471a233",
+        "REQ-6-store-data-in-a-disk-ad3ffc4e",
+        "REQ-7-create-index-must-create-disk-3b71a7dc",
+        "REQ-7-implement-integer-primary-key-as-9c698e08",
+        "REQ-7-insert-update-and-delete-must-997871f9",
+        "REQ-8-begin-commit-and-rollback-provide-44e7901f",
+        "REQ-8-committed-writes-survive-crash-and-35caf667",
+        "REQ-9-checkpoint-or-log-truncation-must-d633d286",
+        "REQ-9-provide-wal-or-equivalent-write-80297892",
+        "REQ-9-recovery-must-be-idempotent-and-300531dc"
+      ],
+      "launch_gates": [
+        "gate-v1-bench-docs-acceptance",
+        "gate-v1-cli-smoke",
+        "gate-v1-crash-testing",
+        "gate-v1-db-check-invariants",
+        "gate-v1-differential-property-tests",
+        "gate-v1-disk-page-storage",
+        "gate-v1-indexes",
+        "gate-v1-sql-schema-exec",
+        "gate-v1-transactions-wal-recovery"
+      ]
+    }
+  },
+  "repair_attempts": 0,
+  "final_disposition": "ready_for_handoff",
+  "evidence_gap_type": "",
+  "confidence_gap_reason": "",
+  "research_question": "",
+  "hypothesis_lineage": {
+    "objective_metric_id": "metric-v1-query-correctness",
+    "current_plan_gap_id": "gap-v1-secondary-index-range-scan",
+    "target_boundary": "managed_repo"
+  },
+  "repairability": {
+    "repairable": false,
+    "reason": "already_ready",
+    "allowed_findings": [],
+    "blocked_findings": []
+  }
+}
