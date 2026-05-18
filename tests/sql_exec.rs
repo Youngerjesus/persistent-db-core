@@ -255,7 +255,7 @@ fn unsupported_sql_reports_exact_statement() {
         "SELECT id FROM users;",
         2,
         "",
-        "error: unsupported SQL statement: SELECT id FROM users;\nhint: supported SQL subset: CREATE TABLE, INSERT INTO ... VALUES, SELECT * FROM ..., SELECT * FROM ... WHERE <primary_key> = <int>;\n",
+        "error: unsupported SQL statement: SELECT id FROM users;\nhint: supported SQL subset is documented in docs/sql_subset.md.\n",
     );
 
     cleanup(&path);

@@ -1,11 +1,15 @@
-use crate::index::PrimaryIndex;
+use crate::index::{PrimaryIndex, SecondaryIndex};
 use crate::storage::{PageStore, StorageError};
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::Path;
 
 const SQL_RECORD_PREFIX: &[u8; 8] = b"PDBSQL1\0";
 const CATALOG_RECORD: u8 = b'C';
 const ROW_RECORD: u8 = b'R';
+const SECONDARY_METADATA_RECORD: u8 = b'X';
+const SECONDARY_ENTRY_RECORD: u8 = b'E';
+const INDEXED_ROW_RECORD: u8 = b'I';
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SqlError {
@@ -20,6 +24,27 @@ impl From<StorageError> for SqlError {
     fn from(error: StorageError) -> Self {
         SqlError::Storage(error)
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum QueryPath {
+    PrimaryIndex {
+        table: String,
+        column: String,
+    },
+    SecondaryIndexEquality {
+        table: String,
+        index: String,
+        column: String,
+    },
+    SecondaryIndexRange {
+        table: String,
+        index: String,
+        column: String,
+    },
+    FullTableScan {
+        table: String,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -52,11 +77,43 @@ impl ColumnType {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum TieBreakMode {
+    PrimaryKey,
+    RowPosition,
+}
+
+impl TieBreakMode {
+    fn to_byte(self) -> u8 {
+        match self {
+            TieBreakMode::PrimaryKey => b'P',
+            TieBreakMode::RowPosition => b'R',
+        }
+    }
+
+    fn from_byte(byte: u8) -> Option<Self> {
+        match byte {
+            b'P' => Some(TieBreakMode::PrimaryKey),
+            b'R' => Some(TieBreakMode::RowPosition),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct Column {
     name: String,
     column_type: ColumnType,
     is_primary_key: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct SecondaryIndexState {
+    build_id: u64,
+    name: String,
+    indexed_column: usize,
+    tie_break_mode: TieBreakMode,
+    index: SecondaryIndex,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -66,6 +123,7 @@ struct Table {
     rows: Vec<Vec<Value>>,
     primary_key_column: Option<usize>,
     primary_index: PrimaryIndex,
+    secondary_indexes: Vec<SecondaryIndexState>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -96,6 +154,11 @@ enum Statement {
         table: String,
         columns: Vec<Column>,
     },
+    CreateIndex {
+        index: String,
+        table: String,
+        column: String,
+    },
     Insert {
         table: String,
         values: Vec<Value>,
@@ -103,12 +166,59 @@ enum Statement {
     SelectAll {
         table: String,
     },
-    SelectPrimaryKey {
+    SelectWhere {
         table: String,
         column: String,
-        key: i64,
+        predicate: Predicate,
         raw: String,
     },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum Predicate {
+    Equality(i64),
+    Range { low: i64, high: i64 },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum LogicalRecord {
+    Catalog {
+        table: String,
+        columns: Vec<Column>,
+    },
+    Row {
+        table: String,
+        values: Vec<Value>,
+    },
+    SecondaryIndexEntry {
+        build_id: u64,
+        index_name: String,
+        indexed_key: i64,
+        tie_break: i64,
+        row_position: u64,
+    },
+    SecondaryIndexMetadata {
+        build_id: u64,
+        index_name: String,
+        table_name: String,
+        indexed_column: u16,
+        tie_break_mode: TieBreakMode,
+    },
+    IndexedRow {
+        table: String,
+        values: Vec<Value>,
+        entries: Vec<EmbeddedIndexEntry>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+struct EmbeddedIndexEntry {
+    build_id: u64,
+    index_name_key: String,
+    index_name: String,
+    indexed_key: i64,
+    tie_break: i64,
+    row_position: u64,
 }
 
 #[derive(Debug, Default)]
@@ -118,13 +228,22 @@ struct Database {
 
 impl Database {
     fn from_records(records: Vec<Vec<u8>>) -> Result<Self, SqlError> {
+        Self::from_records_with_check_label(records).map_err(|_| SqlError::InvalidStorageRecord)
+    }
+
+    fn from_records_with_check_label(records: Vec<Vec<u8>>) -> Result<Self, &'static str> {
         let mut database = Database::default();
+        let mut pending_entries: BTreeMap<(String, u64), Vec<EmbeddedIndexEntry>> = BTreeMap::new();
+        let mut index_names = Vec::<String>::new();
+        let mut committed_index_builds = Vec::<(String, u64)>::new();
+
         for record in records {
-            match decode_record(&record)? {
+            match decode_record(&record).map_err(|_| "storage record readability")? {
                 LogicalRecord::Catalog { table, columns } => {
-                    let primary_key_column = validate_catalog_record_invariants(&table, &columns)?;
+                    let primary_key_column = validate_catalog_record_invariants(&table, &columns)
+                        .map_err(|_| "catalog/record invariant")?;
                     if database.find_table(&table).is_some() {
-                        return Err(SqlError::InvalidStorageRecord);
+                        return Err("catalog/record invariant");
                     }
                     database.tables.push(Table {
                         name: table,
@@ -132,34 +251,133 @@ impl Database {
                         rows: Vec::new(),
                         primary_key_column,
                         primary_index: PrimaryIndex::new(),
+                        secondary_indexes: Vec::new(),
                     });
                 }
                 LogicalRecord::Row { table, values } => {
-                    let Some(existing) = database.find_table_mut(&table) else {
-                        return Err(SqlError::InvalidStorageRecord);
+                    let table = database
+                        .find_table_mut(&table)
+                        .ok_or("catalog/record invariant")?;
+                    if !table.secondary_indexes.is_empty() {
+                        return Err("secondary index");
+                    }
+                    validate_values_for_table(table, &values)
+                        .map_err(|_| "catalog/record invariant")?;
+                    validate_primary_key_available(table, &values).map_err(|_| "primary index")?;
+                    append_loaded_row_after_validation(table, values)
+                        .map_err(|_| "catalog/record invariant")?;
+                }
+                LogicalRecord::SecondaryIndexEntry {
+                    build_id,
+                    index_name,
+                    indexed_key,
+                    tie_break,
+                    row_position,
+                } => {
+                    let entry = EmbeddedIndexEntry {
+                        build_id,
+                        index_name_key: normalize_identifier(&index_name),
+                        index_name,
+                        indexed_key,
+                        tie_break,
+                        row_position,
                     };
-                    if existing.columns.len() != values.len() {
-                        return Err(SqlError::InvalidStorageRecord);
+                    pending_entries
+                        .entry((entry.index_name_key.clone(), build_id))
+                        .or_default()
+                        .push(entry);
+                }
+                LogicalRecord::SecondaryIndexMetadata {
+                    build_id,
+                    index_name,
+                    table_name,
+                    indexed_column,
+                    tie_break_mode,
+                } => {
+                    let index_key = normalize_identifier(&index_name);
+                    if index_names.iter().any(|existing| existing == &index_key) {
+                        return Err("secondary index");
                     }
-                    for (column, value) in existing.columns.iter().zip(values.iter()) {
-                        if column.column_type != value.column_type() {
-                            return Err(SqlError::InvalidStorageRecord);
-                        }
-                        validate_loaded_value(value)?;
+                    let table = database
+                        .find_table_mut(&table_name)
+                        .ok_or("secondary index")?;
+                    let column_index = indexed_column as usize;
+                    let Some(column) = table.columns.get(column_index) else {
+                        return Err("secondary index");
+                    };
+                    if column.column_type != ColumnType::Int {
+                        return Err("secondary index");
                     }
-                    if let Some(primary_key_column) = existing.primary_key_column {
-                        let Value::Int(key) = values[primary_key_column] else {
-                            return Err(SqlError::InvalidStorageRecord);
-                        };
-                        existing
-                            .primary_index
-                            .insert(key, existing.rows.len())
-                            .map_err(|_| SqlError::InvalidStorageRecord)?;
+                    if tie_break_mode == TieBreakMode::PrimaryKey
+                        && table.primary_key_column.is_none()
+                    {
+                        return Err("secondary index");
                     }
-                    existing.rows.push(values);
+
+                    let index_build_key = (index_key.clone(), build_id);
+                    let entries = pending_entries.remove(&index_build_key).unwrap_or_default();
+                    let mut state = SecondaryIndexState {
+                        build_id,
+                        name: index_name,
+                        indexed_column: column_index,
+                        tie_break_mode,
+                        index: SecondaryIndex::new(),
+                    };
+                    validate_and_insert_entries(table, &mut state, &entries)?;
+                    table.secondary_indexes.push(state);
+                    index_names.push(index_key);
+                    committed_index_builds.push(index_build_key);
+                }
+                LogicalRecord::IndexedRow {
+                    table,
+                    values,
+                    entries,
+                } => {
+                    let table = database
+                        .find_table_mut(&table)
+                        .ok_or("catalog/record invariant")?;
+                    if table.secondary_indexes.is_empty() {
+                        return Err("secondary index");
+                    }
+                    validate_values_for_table(table, &values)
+                        .map_err(|_| "catalog/record invariant")?;
+                    validate_primary_key_available(table, &values).map_err(|_| "primary index")?;
+
+                    let row_position = table.rows.len();
+                    let expected_entries = expected_entries_for_row(table, &values, row_position)?;
+                    if canonical_entries(&entries) != canonical_entries(&expected_entries) {
+                        return Err("secondary index");
+                    }
+
+                    for entry in &expected_entries {
+                        let index = table
+                            .secondary_indexes
+                            .iter_mut()
+                            .find(|index| {
+                                index.build_id == entry.build_id
+                                    && index.name.eq_ignore_ascii_case(&entry.index_name)
+                            })
+                            .ok_or("secondary index")?;
+                        index
+                            .index
+                            .insert(entry.indexed_key, entry.tie_break, row_position)
+                            .map_err(|_| "secondary index")?;
+                    }
+                    append_loaded_row_after_validation(table, values)
+                        .map_err(|_| "catalog/record invariant")?;
                 }
             }
         }
+
+        if pending_entries.keys().any(|key| {
+            committed_index_builds
+                .iter()
+                .any(|committed| committed == key)
+        }) {
+            return Err("secondary index");
+        }
+
+        validate_secondary_indexes(&database)?;
         Ok(database)
     }
 
@@ -174,54 +392,24 @@ impl Database {
             .iter_mut()
             .find(|table| table.name.eq_ignore_ascii_case(name))
     }
-}
 
-fn validate_catalog_record_invariants(
-    table: &str,
-    columns: &[Column],
-) -> Result<Option<usize>, SqlError> {
-    if !is_valid_identifier(table) || columns.is_empty() {
-        return Err(SqlError::InvalidStorageRecord);
-    }
-
-    let mut primary_key_column = None;
-    for (index, column) in columns.iter().enumerate() {
-        if !is_valid_identifier(&column.name)
-            || columns[..index]
+    fn contains_index_name(&self, index_name: &str) -> bool {
+        self.tables.iter().any(|table| {
+            table
+                .secondary_indexes
                 .iter()
-                .any(|existing| existing.name.eq_ignore_ascii_case(&column.name))
-        {
-            return Err(SqlError::InvalidStorageRecord);
-        }
-        if column.is_primary_key {
-            if column.column_type != ColumnType::Int || primary_key_column.is_some() {
-                return Err(SqlError::InvalidStorageRecord);
-            }
-            primary_key_column = Some(index);
-        }
+                .any(|index| index.name.eq_ignore_ascii_case(index_name))
+        })
     }
-
-    Ok(primary_key_column)
-}
-
-fn validate_loaded_value(value: &Value) -> Result<(), SqlError> {
-    match value {
-        Value::Int(_) => Ok(()),
-        Value::Text(value) if is_output_safe_text(value) => Ok(()),
-        Value::Text(_) => Err(SqlError::InvalidStorageRecord),
-    }
-}
-
-enum LogicalRecord {
-    Catalog { table: String, columns: Vec<Column> },
-    Row { table: String, values: Vec<Value> },
 }
 
 pub fn execute(path: impl AsRef<Path>, sql: &str) -> Result<String, SqlError> {
     let path = path.as_ref();
     initialize_empty_sql_file(path)?;
     let mut store = PageStore::open(path)?;
-    let mut database = Database::from_records(store.read_records()?)?;
+    let records = store.read_records()?;
+    let mut logical_record_count = records.len() as u64;
+    let mut database = Database::from_records(records)?;
     let statements = parse_statements(sql)?;
     let mut stdout = String::new();
 
@@ -229,20 +417,37 @@ pub fn execute(path: impl AsRef<Path>, sql: &str) -> Result<String, SqlError> {
         match statement {
             Statement::CreateTable { table, columns } => {
                 execute_create_table(&mut store, &mut database, table, columns)?;
+                logical_record_count += 1;
+            }
+            Statement::CreateIndex {
+                index,
+                table,
+                column,
+            } => {
+                let appended = execute_create_index(
+                    &mut store,
+                    &mut database,
+                    logical_record_count,
+                    index,
+                    table,
+                    column,
+                )?;
+                logical_record_count += appended;
             }
             Statement::Insert { table, values } => {
                 execute_insert(&mut store, &mut database, table, values)?;
+                logical_record_count += 1;
             }
             Statement::SelectAll { table } => {
                 execute_select(&database, &table, &mut stdout)?;
             }
-            Statement::SelectPrimaryKey {
+            Statement::SelectWhere {
                 table,
                 column,
-                key,
+                predicate,
                 raw,
             } => {
-                execute_select_primary_key(&database, &table, &column, key, &raw, &mut stdout)?;
+                execute_select_where(&database, &table, &column, predicate, &raw, &mut stdout)?;
             }
         }
     }
@@ -251,62 +456,85 @@ pub fn execute(path: impl AsRef<Path>, sql: &str) -> Result<String, SqlError> {
 }
 
 pub fn validate_records_for_check(records: Vec<Vec<u8>>) -> Result<(), &'static str> {
-    let mut database = Database::default();
-    for record in records {
-        match decode_record(&record).map_err(|_| "storage record readability")? {
-            LogicalRecord::Catalog { table, columns } => {
-                let primary_key_column = validate_catalog_record_invariants(&table, &columns)
-                    .map_err(|_| "catalog/record invariant")?;
-                if database.find_table(&table).is_some() {
-                    return Err("catalog/record invariant");
-                }
-                database.tables.push(Table {
-                    name: table,
-                    columns,
-                    rows: Vec::new(),
-                    primary_key_column,
-                    primary_index: PrimaryIndex::new(),
-                });
-            }
-            LogicalRecord::Row { table, values } => {
-                let Some(existing) = database.find_table_mut(&table) else {
-                    return Err("catalog/record invariant");
-                };
-                if existing.columns.len() != values.len() {
-                    return Err("catalog/record invariant");
-                }
-                for (column, value) in existing.columns.iter().zip(values.iter()) {
-                    if column.column_type != value.column_type() {
-                        return Err("catalog/record invariant");
-                    }
-                    validate_loaded_value(value).map_err(|_| "catalog/record invariant")?;
-                }
-                if let Some(primary_key_column) = existing.primary_key_column {
-                    let Value::Int(key) = values[primary_key_column] else {
-                        return Err("catalog/record invariant");
-                    };
-                    existing
-                        .primary_index
-                        .insert(key, existing.rows.len())
-                        .map_err(|_| "primary index")?;
-                }
-                existing.rows.push(values);
-            }
-        }
-    }
-
+    Database::from_records_with_check_label(records)?;
     Ok(())
 }
 
-fn initialize_empty_sql_file(path: &Path) -> Result<(), SqlError> {
-    match fs::metadata(path) {
-        Ok(metadata) if metadata.len() == 0 => {
-            fs::remove_file(path).map_err(|_| SqlError::Storage(StorageError::Io))?;
-            Ok(())
+pub fn plan_query_path_for_test(path: impl AsRef<Path>, sql: &str) -> Result<QueryPath, SqlError> {
+    let path = path.as_ref();
+    initialize_empty_sql_file(path)?;
+    let mut store = PageStore::open(path)?;
+    let database = Database::from_records(store.read_records()?)?;
+    let statements = parse_statements(sql)?;
+    if statements.len() != 1 {
+        return Err(SqlError::Malformed(sql.trim().to_string()));
+    }
+    plan_query_path(&database, &statements[0])
+}
+
+fn plan_query_path(database: &Database, statement: &Statement) -> Result<QueryPath, SqlError> {
+    match statement {
+        Statement::SelectAll { table } => {
+            let table = database
+                .find_table(table)
+                .ok_or_else(|| table_not_found(table))?;
+            Ok(QueryPath::FullTableScan {
+                table: table.name.clone(),
+            })
         }
-        Ok(_) => Ok(()),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
-        Err(_) => Err(SqlError::Storage(StorageError::Io)),
+        Statement::SelectWhere {
+            table,
+            column,
+            predicate,
+            raw,
+        } => {
+            let table = database
+                .find_table(table)
+                .ok_or_else(|| table_not_found(table))?;
+            if let Some(index) = table.secondary_index_for_column(column) {
+                let column_name = table.columns[index.indexed_column].name.clone();
+                return match predicate {
+                    Predicate::Equality(_) => Ok(QueryPath::SecondaryIndexEquality {
+                        table: table.name.clone(),
+                        index: index.name.clone(),
+                        column: column_name,
+                    }),
+                    Predicate::Range { .. } => Ok(QueryPath::SecondaryIndexRange {
+                        table: table.name.clone(),
+                        index: index.name.clone(),
+                        column: column_name,
+                    }),
+                };
+            }
+            if let Some(primary_key_column) = table.primary_key_column {
+                if table.columns[primary_key_column]
+                    .name
+                    .eq_ignore_ascii_case(column)
+                    && matches!(predicate, Predicate::Equality(_))
+                {
+                    return Ok(QueryPath::PrimaryIndex {
+                        table: table.name.clone(),
+                        column: table.columns[primary_key_column].name.clone(),
+                    });
+                }
+            }
+            Err(SqlError::Unsupported(raw.clone()))
+        }
+        _ => Err(SqlError::Unsupported(String::new())),
+    }
+}
+
+trait TableSecondaryLookup {
+    fn secondary_index_for_column(&self, column: &str) -> Option<&SecondaryIndexState>;
+}
+
+impl TableSecondaryLookup for Table {
+    fn secondary_index_for_column(&self, column: &str) -> Option<&SecondaryIndexState> {
+        self.secondary_indexes.iter().find(|index| {
+            self.columns[index.indexed_column]
+                .name
+                .eq_ignore_ascii_case(column)
+        })
     }
 }
 
@@ -362,8 +590,81 @@ fn execute_create_table(
         rows: Vec::new(),
         primary_key_column,
         primary_index: PrimaryIndex::new(),
+        secondary_indexes: Vec::new(),
     });
     Ok(())
+}
+
+fn execute_create_index(
+    store: &mut PageStore,
+    database: &mut Database,
+    build_id: u64,
+    index_name: String,
+    table_name: String,
+    column_name: String,
+) -> Result<u64, SqlError> {
+    if database.contains_index_name(&index_name) {
+        return Err(SqlError::Semantic {
+            message: format!("index already exists: {index_name}"),
+            hint: "use a new index name for CREATE INDEX in this database.",
+        });
+    }
+
+    let table = database
+        .find_table_mut(&table_name)
+        .ok_or_else(|| table_not_found_for_create_index(&table_name))?;
+    let Some(indexed_column) = table
+        .columns
+        .iter()
+        .position(|column| column.name.eq_ignore_ascii_case(&column_name))
+    else {
+        return Err(SqlError::Semantic {
+            message: format!("column not found for index {index_name}: {column_name}"),
+            hint: "create the index on an existing table column.",
+        });
+    };
+    if table.columns[indexed_column].column_type != ColumnType::Int {
+        return Err(SqlError::Semantic {
+            message: format!("secondary index column must be INT: {column_name}"),
+            hint: "this SQL slice supports secondary indexes only on INT columns.",
+        });
+    }
+
+    let tie_break_mode = if table.primary_key_column.is_some() {
+        TieBreakMode::PrimaryKey
+    } else {
+        TieBreakMode::RowPosition
+    };
+    let mut state = SecondaryIndexState {
+        build_id,
+        name: index_name,
+        indexed_column,
+        tie_break_mode,
+        index: SecondaryIndex::new(),
+    };
+    let mut entries = Vec::new();
+    for (row_position, row) in table.rows.iter().enumerate() {
+        entries.push(
+            expected_entry_for_index(&state, table, row, row_position)
+                .map_err(|_| SqlError::InvalidStorageRecord)?,
+        );
+    }
+    for entry in &entries {
+        store.append_record(&encode_secondary_entry_record(entry))?;
+    }
+    store.append_record(&encode_secondary_metadata_record(&state, &table.name))?;
+    for entry in &entries {
+        state
+            .index
+            .insert(
+                entry.indexed_key,
+                entry.tie_break,
+                entry.row_position as usize,
+            )
+            .map_err(|_| SqlError::InvalidStorageRecord)?;
+    }
+    table.secondary_indexes.push(state);
+    Ok(entries.len() as u64 + 1)
 }
 
 fn execute_insert(
@@ -372,36 +673,10 @@ fn execute_insert(
     table: String,
     values: Vec<Value>,
 ) -> Result<(), SqlError> {
-    let Some(existing) = database.find_table_mut(&table) else {
-        return Err(table_not_found(&table));
-    };
-
-    if existing.columns.len() != values.len() {
-        return Err(SqlError::Semantic {
-            message: format!(
-                "column count mismatch for table {}: expected {} values, got {}",
-                existing.name,
-                existing.columns.len(),
-                values.len()
-            ),
-            hint: "INSERT values must match the table schema exactly.",
-        });
-    }
-
-    for (column, value) in existing.columns.iter().zip(values.iter()) {
-        if column.column_type != value.column_type() {
-            return Err(SqlError::Semantic {
-                message: format!(
-                    "type mismatch for column {}: expected {}, got {}",
-                    column.name,
-                    column.column_type.as_str(),
-                    value.column_type().as_str()
-                ),
-                hint: "INSERT values must match the declared column types.",
-            });
-        }
-    }
-
+    let existing = database
+        .find_table_mut(&table)
+        .ok_or_else(|| table_not_found(&table))?;
+    validate_values_for_table(existing, &values)?;
     if let Some(primary_key_column) = existing.primary_key_column {
         let Value::Int(key) = values[primary_key_column] else {
             return Err(SqlError::InvalidStorageRecord);
@@ -414,27 +689,43 @@ fn execute_insert(
         }
     }
 
-    store.append_record(&encode_row_record(&existing.name, &values))?;
-    if let Some(primary_key_column) = existing.primary_key_column {
-        let Value::Int(key) = values[primary_key_column] else {
-            return Err(SqlError::InvalidStorageRecord);
-        };
-        existing
-            .primary_index
-            .insert(key, existing.rows.len())
+    if existing.secondary_indexes.is_empty() {
+        store.append_record(&encode_row_record(&existing.name, &values))?;
+        append_loaded_row_after_validation(existing, values)?;
+        return Ok(());
+    }
+
+    let row_position = existing.rows.len();
+    let entries = expected_entries_for_row(existing, &values, row_position)
+        .map_err(|_| SqlError::InvalidStorageRecord)?;
+    store.append_record(&encode_indexed_row_record(
+        &existing.name,
+        &values,
+        &entries,
+    ))?;
+    for entry in &entries {
+        let index = existing
+            .secondary_indexes
+            .iter_mut()
+            .find(|index| {
+                index.build_id == entry.build_id
+                    && index.name.eq_ignore_ascii_case(&entry.index_name)
+            })
+            .ok_or(SqlError::InvalidStorageRecord)?;
+        index
+            .index
+            .insert(entry.indexed_key, entry.tie_break, row_position)
             .map_err(|_| SqlError::InvalidStorageRecord)?;
     }
-    existing.rows.push(values);
+    append_loaded_row_after_validation(existing, values)?;
     Ok(())
 }
 
 fn execute_select(database: &Database, table: &str, stdout: &mut String) -> Result<(), SqlError> {
-    let Some(existing) = database.find_table(table) else {
-        return Err(table_not_found(table));
-    };
-
+    let existing = database
+        .find_table(table)
+        .ok_or_else(|| table_not_found(table))?;
     write_header(existing, stdout);
-
     if existing.primary_key_column.is_some() {
         for row_position in existing.primary_index.ordered_positions() {
             write_row(&existing.rows[row_position], stdout);
@@ -444,36 +735,252 @@ fn execute_select(database: &Database, table: &str, stdout: &mut String) -> Resu
             write_row(row, stdout);
         }
     }
-
     Ok(())
 }
 
-fn execute_select_primary_key(
+fn execute_select_where(
     database: &Database,
     table: &str,
     column: &str,
-    key: i64,
+    predicate: Predicate,
     raw: &str,
     stdout: &mut String,
 ) -> Result<(), SqlError> {
-    let Some(existing) = database.find_table(table) else {
-        return Err(table_not_found(table));
-    };
-    let Some(primary_key_column) = existing.primary_key_column else {
-        return Err(SqlError::Unsupported(raw.to_string()));
-    };
-    if !existing.columns[primary_key_column]
-        .name
-        .eq_ignore_ascii_case(column)
-    {
-        return Err(SqlError::Unsupported(raw.to_string()));
+    let existing = database
+        .find_table(table)
+        .ok_or_else(|| table_not_found(table))?;
+    write_header(existing, stdout);
+    if let Some(index) = existing.secondary_index_for_column(column) {
+        let positions = match predicate {
+            Predicate::Equality(key) => index.index.equality_positions(key),
+            Predicate::Range { low, high } => index.index.range_positions(low, high),
+        };
+        for row_position in positions {
+            write_row(&existing.rows[row_position], stdout);
+        }
+        return Ok(());
     }
 
-    write_header(existing, stdout);
-    if let Some(row_position) = existing.primary_index.get(key) {
-        write_row(&existing.rows[row_position], stdout);
+    if let Some(primary_key_column) = existing.primary_key_column {
+        if existing.columns[primary_key_column]
+            .name
+            .eq_ignore_ascii_case(column)
+        {
+            let Predicate::Equality(key) = predicate else {
+                return Err(SqlError::Unsupported(raw.to_string()));
+            };
+            if let Some(row_position) = existing.primary_index.get(key) {
+                write_row(&existing.rows[row_position], stdout);
+            }
+            return Ok(());
+        }
+    }
+    Err(SqlError::Unsupported(raw.to_string()))
+}
+
+fn append_loaded_row_after_validation(
+    table: &mut Table,
+    values: Vec<Value>,
+) -> Result<(), SqlError> {
+    if let Some(primary_key_column) = table.primary_key_column {
+        let Value::Int(key) = values[primary_key_column] else {
+            return Err(SqlError::InvalidStorageRecord);
+        };
+        table
+            .primary_index
+            .insert(key, table.rows.len())
+            .map_err(|_| SqlError::InvalidStorageRecord)?;
+    }
+    table.rows.push(values);
+    Ok(())
+}
+
+fn validate_values_for_table(table: &Table, values: &[Value]) -> Result<(), SqlError> {
+    if table.columns.len() != values.len() {
+        return Err(SqlError::Semantic {
+            message: format!(
+                "column count mismatch for table {}: expected {} values, got {}",
+                table.name,
+                table.columns.len(),
+                values.len()
+            ),
+            hint: "INSERT values must match the table schema exactly.",
+        });
+    }
+    for (column, value) in table.columns.iter().zip(values.iter()) {
+        if column.column_type != value.column_type() {
+            return Err(SqlError::Semantic {
+                message: format!(
+                    "type mismatch for column {}: expected {}, got {}",
+                    column.name,
+                    column.column_type.as_str(),
+                    value.column_type().as_str()
+                ),
+                hint: "INSERT values must match the declared column types.",
+            });
+        }
+        validate_loaded_value(value)?;
     }
     Ok(())
+}
+
+fn validate_primary_key_available(table: &Table, values: &[Value]) -> Result<(), SqlError> {
+    if let Some(primary_key_column) = table.primary_key_column {
+        let Value::Int(key) = values[primary_key_column] else {
+            return Err(SqlError::InvalidStorageRecord);
+        };
+        if table.primary_index.get(key).is_some() {
+            return Err(SqlError::InvalidStorageRecord);
+        }
+    }
+    Ok(())
+}
+
+fn validate_and_insert_entries(
+    table: &Table,
+    state: &mut SecondaryIndexState,
+    entries: &[EmbeddedIndexEntry],
+) -> Result<(), &'static str> {
+    let mut expected = Vec::new();
+    for (row_position, row) in table.rows.iter().enumerate() {
+        expected.push(expected_entry_for_index(state, table, row, row_position)?);
+    }
+    if canonical_entries(entries) != canonical_entries(&expected) {
+        return Err("secondary index");
+    }
+    for entry in entries {
+        state
+            .index
+            .insert(
+                entry.indexed_key,
+                entry.tie_break,
+                entry.row_position as usize,
+            )
+            .map_err(|_| "secondary index")?;
+    }
+    Ok(())
+}
+
+fn validate_secondary_indexes(database: &Database) -> Result<(), &'static str> {
+    for table in &database.tables {
+        for state in &table.secondary_indexes {
+            let mut rebuilt = SecondaryIndex::new();
+            for (row_position, row) in table.rows.iter().enumerate() {
+                let entry = expected_entry_for_index(state, table, row, row_position)?;
+                rebuilt
+                    .insert(entry.indexed_key, entry.tie_break, row_position)
+                    .map_err(|_| "secondary index")?;
+            }
+            if rebuilt != state.index {
+                return Err("secondary index");
+            }
+        }
+    }
+    Ok(())
+}
+
+fn expected_entries_for_row(
+    table: &Table,
+    row: &[Value],
+    row_position: usize,
+) -> Result<Vec<EmbeddedIndexEntry>, &'static str> {
+    let mut entries = Vec::new();
+    for state in &table.secondary_indexes {
+        entries.push(expected_entry_for_index(state, table, row, row_position)?);
+    }
+    Ok(entries)
+}
+
+fn expected_entry_for_index(
+    state: &SecondaryIndexState,
+    table: &Table,
+    row: &[Value],
+    row_position: usize,
+) -> Result<EmbeddedIndexEntry, &'static str> {
+    let Value::Int(indexed_key) = row[state.indexed_column] else {
+        return Err("secondary index");
+    };
+    let tie_break = match state.tie_break_mode {
+        TieBreakMode::PrimaryKey => {
+            let primary_key_column = table.primary_key_column.ok_or("secondary index")?;
+            let Value::Int(primary_key) = row[primary_key_column] else {
+                return Err("secondary index");
+            };
+            primary_key
+        }
+        TieBreakMode::RowPosition => row_position as i64,
+    };
+    Ok(EmbeddedIndexEntry {
+        build_id: state.build_id,
+        index_name_key: normalize_identifier(&state.name),
+        index_name: state.name.clone(),
+        indexed_key,
+        tie_break,
+        row_position: row_position as u64,
+    })
+}
+
+fn canonical_entries(entries: &[EmbeddedIndexEntry]) -> Vec<(u64, String, i64, i64, u64)> {
+    let mut canonical: Vec<_> = entries
+        .iter()
+        .map(|entry| {
+            (
+                entry.build_id,
+                entry.index_name_key.clone(),
+                entry.indexed_key,
+                entry.tie_break,
+                entry.row_position,
+            )
+        })
+        .collect();
+    canonical.sort();
+    canonical
+}
+
+fn validate_catalog_record_invariants(
+    table: &str,
+    columns: &[Column],
+) -> Result<Option<usize>, SqlError> {
+    if !is_valid_identifier(table) || columns.is_empty() {
+        return Err(SqlError::InvalidStorageRecord);
+    }
+    let mut primary_key_column = None;
+    for (index, column) in columns.iter().enumerate() {
+        if !is_valid_identifier(&column.name)
+            || columns[..index]
+                .iter()
+                .any(|existing| existing.name.eq_ignore_ascii_case(&column.name))
+        {
+            return Err(SqlError::InvalidStorageRecord);
+        }
+        if column.is_primary_key {
+            if column.column_type != ColumnType::Int || primary_key_column.is_some() {
+                return Err(SqlError::InvalidStorageRecord);
+            }
+            primary_key_column = Some(index);
+        }
+    }
+    Ok(primary_key_column)
+}
+
+fn validate_loaded_value(value: &Value) -> Result<(), SqlError> {
+    match value {
+        Value::Int(_) => Ok(()),
+        Value::Text(value) if is_output_safe_text(value) => Ok(()),
+        Value::Text(_) => Err(SqlError::InvalidStorageRecord),
+    }
+}
+
+fn initialize_empty_sql_file(path: &Path) -> Result<(), SqlError> {
+    match fs::metadata(path) {
+        Ok(metadata) if metadata.len() == 0 => {
+            fs::remove_file(path).map_err(|_| SqlError::Storage(StorageError::Io))?;
+            Ok(())
+        }
+        Ok(_) => Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(_) => Err(SqlError::Storage(StorageError::Io)),
+    }
 }
 
 fn write_header(table: &Table, stdout: &mut String) {
@@ -503,6 +1010,13 @@ fn table_not_found(table: &str) -> SqlError {
     }
 }
 
+fn table_not_found_for_create_index(table: &str) -> SqlError {
+    SqlError::Semantic {
+        message: format!("table not found: {table}"),
+        hint: "create the table before INSERT, SELECT, or CREATE INDEX.",
+    }
+}
+
 fn parse_statements(sql: &str) -> Result<Vec<Statement>, SqlError> {
     let raw_statements = split_raw_statements(sql)?;
     raw_statements
@@ -515,7 +1029,6 @@ fn split_raw_statements(sql: &str) -> Result<Vec<String>, SqlError> {
     let mut statements = Vec::new();
     let mut start = 0usize;
     let mut in_text = false;
-
     for (index, ch) in sql.char_indices() {
         if ch == '\'' {
             in_text = !in_text;
@@ -529,12 +1042,10 @@ fn split_raw_statements(sql: &str) -> Result<Vec<String>, SqlError> {
             start = index + ch.len_utf8();
         }
     }
-
     let trailing = sql[start..].trim();
     if in_text || !trailing.is_empty() || statements.is_empty() {
         return Err(SqlError::Malformed(sql.trim().to_string()));
     }
-
     Ok(statements)
 }
 
@@ -543,8 +1054,9 @@ fn parse_statement(raw: &str) -> Result<Statement, SqlError> {
         .strip_suffix(';')
         .expect("split_raw_statements keeps statement delimiter")
         .trim();
-
-    if starts_with_keyword_sequence(body, &["CREATE", "TABLE"]) {
+    if starts_with_keyword_sequence(body, &["CREATE", "INDEX"]) {
+        parse_create_index(body).map_err(|()| SqlError::Malformed(raw.to_string()))
+    } else if starts_with_keyword_sequence(body, &["CREATE", "TABLE"]) {
         parse_create_table(body).map_err(|()| SqlError::Malformed(raw.to_string()))
     } else if starts_with_keyword_sequence(body, &["INSERT", "INTO"]) {
         parse_insert(body).map_err(|()| {
@@ -565,6 +1077,148 @@ fn parse_statement(raw: &str) -> Result<Statement, SqlError> {
     } else {
         Err(SqlError::Unsupported(raw.to_string()))
     }
+}
+
+fn parse_create_index(body: &str) -> Result<Statement, ()> {
+    let mut parser = Parser::new(body);
+    parser.consume_keyword("CREATE")?;
+    parser.require_space()?;
+    parser.consume_keyword("INDEX")?;
+    parser.require_space()?;
+    let index = parser.consume_identifier()?;
+    parser.require_space()?;
+    parser.consume_keyword("ON")?;
+    parser.require_space()?;
+    let table = parser.consume_identifier()?;
+    parser.skip_space();
+    parser.consume_char('(')?;
+    parser.skip_space();
+    let column = parser.consume_identifier()?;
+    parser.skip_space();
+    parser.consume_char(')')?;
+    parser.skip_space();
+    parser.finish()?;
+    Ok(Statement::CreateIndex {
+        index,
+        table,
+        column,
+    })
+}
+
+fn parse_create_table(body: &str) -> Result<Statement, ()> {
+    let mut parser = Parser::new(body);
+    parser.consume_keyword("CREATE")?;
+    parser.require_space()?;
+    parser.consume_keyword("TABLE")?;
+    parser.require_space()?;
+    let table = parser.consume_identifier()?;
+    parser.skip_space();
+    parser.consume_char('(')?;
+    let columns_body = parser.consume_until_matching_close_paren()?;
+    parser.skip_space();
+    parser.finish()?;
+    let mut columns = Vec::new();
+    for item in split_comma_list(columns_body)? {
+        let mut column_parser = Parser::new(item);
+        let name = column_parser.consume_identifier()?;
+        column_parser.require_space()?;
+        let column_type = if column_parser.consume_keyword("INT").is_ok() {
+            ColumnType::Int
+        } else if column_parser.consume_keyword("TEXT").is_ok() {
+            ColumnType::Text
+        } else {
+            return Err(());
+        };
+        column_parser.skip_space();
+        let is_primary_key = if column_parser.consume_keyword("PRIMARY").is_ok() {
+            column_parser.require_space()?;
+            column_parser.consume_keyword("KEY")?;
+            column_parser.skip_space();
+            true
+        } else {
+            false
+        };
+        column_parser.finish()?;
+        columns.push(Column {
+            name,
+            column_type,
+            is_primary_key,
+        });
+    }
+    if columns.is_empty() {
+        return Err(());
+    }
+    Ok(Statement::CreateTable { table, columns })
+}
+
+fn parse_insert(body: &str) -> Result<Statement, ()> {
+    let mut parser = Parser::new(body);
+    parser.consume_keyword("INSERT")?;
+    parser.require_space()?;
+    parser.consume_keyword("INTO")?;
+    parser.require_space()?;
+    let table = parser.consume_identifier()?;
+    parser.require_space()?;
+    parser.consume_keyword("VALUES")?;
+    parser.skip_space();
+    parser.consume_char('(')?;
+    let values_body = parser.consume_until_matching_close_paren()?;
+    parser.skip_space();
+    parser.finish()?;
+    let mut values = Vec::new();
+    for item in split_value_list(values_body)? {
+        values.push(parse_value(item)?);
+    }
+    if values.is_empty() {
+        return Err(());
+    }
+    Ok(Statement::Insert { table, values })
+}
+
+fn parse_select(body: &str, raw: &str) -> Result<Statement, ()> {
+    let mut parser = Parser::new(body);
+    parser.consume_keyword("SELECT")?;
+    parser.require_space()?;
+    parser.consume_char('*')?;
+    parser.require_space()?;
+    parser.consume_keyword("FROM")?;
+    parser.require_space()?;
+    let table = parser.consume_identifier()?;
+    parser.skip_space();
+    if parser.consume_keyword("WHERE").is_ok() {
+        parser.require_space()?;
+        let column = parser.consume_identifier()?;
+        parser.skip_space();
+        if parser.consume_keyword("BETWEEN").is_ok() {
+            parser.require_space()?;
+            let low = parser.consume_int_literal()?;
+            parser.require_space()?;
+            parser.consume_keyword("AND")?;
+            parser.require_space()?;
+            let high = parser.consume_int_literal()?;
+            parser.skip_space();
+            parser.finish()?;
+            return Ok(Statement::SelectWhere {
+                table,
+                column,
+                predicate: Predicate::Range { low, high },
+                raw: raw.to_string(),
+            });
+        }
+        parser.consume_char('=')?;
+        parser.skip_space();
+        let key = parser.consume_int_literal()?;
+        parser.skip_space();
+        parser.finish()?;
+        return Ok(Statement::SelectWhere {
+            table,
+            column,
+            predicate: Predicate::Equality(key),
+            raw: raw.to_string(),
+        });
+    }
+    parser.finish()?;
+    Ok(Statement::SelectAll { table })
 }
 
 fn is_malformed_select_shape(body: &str) -> bool {
@@ -607,112 +1261,6 @@ fn is_insert_with_column_list(body: &str) -> bool {
     parser.peek_char() == Some('(')
 }
 
-fn parse_create_table(body: &str) -> Result<Statement, ()> {
-    let mut parser = Parser::new(body);
-    parser.consume_keyword("CREATE")?;
-    parser.require_space()?;
-    parser.consume_keyword("TABLE")?;
-    parser.require_space()?;
-    let table = parser.consume_identifier()?;
-    parser.skip_space();
-    parser.consume_char('(')?;
-    let columns_body = parser.consume_until_matching_close_paren()?;
-    parser.skip_space();
-    parser.finish()?;
-
-    let mut columns = Vec::new();
-    for item in split_comma_list(columns_body)? {
-        let mut column_parser = Parser::new(item);
-        let name = column_parser.consume_identifier()?;
-        column_parser.require_space()?;
-        let column_type = if column_parser.consume_keyword("INT").is_ok() {
-            ColumnType::Int
-        } else if column_parser.consume_keyword("TEXT").is_ok() {
-            ColumnType::Text
-        } else {
-            return Err(());
-        };
-        column_parser.skip_space();
-        let is_primary_key = if column_parser.consume_keyword("PRIMARY").is_ok() {
-            column_parser.require_space()?;
-            column_parser.consume_keyword("KEY")?;
-            column_parser.skip_space();
-            true
-        } else {
-            false
-        };
-        column_parser.finish()?;
-        columns.push(Column {
-            name,
-            column_type,
-            is_primary_key,
-        });
-    }
-
-    if columns.is_empty() {
-        return Err(());
-    }
-
-    Ok(Statement::CreateTable { table, columns })
-}
-
-fn parse_insert(body: &str) -> Result<Statement, ()> {
-    let mut parser = Parser::new(body);
-    parser.consume_keyword("INSERT")?;
-    parser.require_space()?;
-    parser.consume_keyword("INTO")?;
-    parser.require_space()?;
-    let table = parser.consume_identifier()?;
-    parser.require_space()?;
-    parser.consume_keyword("VALUES")?;
-    parser.skip_space();
-    parser.consume_char('(')?;
-    let values_body = parser.consume_until_matching_close_paren()?;
-    parser.skip_space();
-    parser.finish()?;
-
-    let mut values = Vec::new();
-    for item in split_value_list(values_body)? {
-        values.push(parse_value(item)?);
-    }
-
-    if values.is_empty() {
-        return Err(());
-    }
-
-    Ok(Statement::Insert { table, values })
-}
-
-fn parse_select(body: &str, raw: &str) -> Result<Statement, ()> {
-    let mut parser = Parser::new(body);
-    parser.consume_keyword("SELECT")?;
-    parser.require_space()?;
-    parser.consume_char('*')?;
-    parser.require_space()?;
-    parser.consume_keyword("FROM")?;
-    parser.require_space()?;
-    let table = parser.consume_identifier()?;
-    parser.skip_space();
-    if parser.consume_keyword("WHERE").is_ok() {
-        parser.require_space()?;
-        let column = parser.consume_identifier()?;
-        parser.skip_space();
-        parser.consume_char('=')?;
-        parser.skip_space();
-        let key = parser.consume_int_literal()?;
-        parser.skip_space();
-        parser.finish()?;
-        return Ok(Statement::SelectPrimaryKey {
-            table,
-            column,
-            key,
-            raw: raw.to_string(),
-        });
-    }
-    parser.finish()?;
-    Ok(Statement::SelectAll { table })
-}
-
 fn parse_value(raw: &str) -> Result<Value, ()> {
     let value = raw.trim();
     if value.starts_with('\'') {
@@ -724,7 +1272,6 @@ fn parse_value(raw: &str) -> Result<Value, ()> {
         }
         return Ok(Value::Text(inner.to_string()));
     }
-
     if !is_signed_decimal_literal(value) {
         return Err(());
     }
@@ -752,6 +1299,10 @@ fn is_valid_identifier(value: &str) -> bool {
     is_identifier_start(first) && chars.all(is_identifier_continue)
 }
 
+fn normalize_identifier(value: &str) -> String {
+    value.to_ascii_lowercase()
+}
+
 fn split_comma_list(input: &str) -> Result<Vec<&str>, ()> {
     let items: Vec<&str> = input.split(',').map(str::trim).collect();
     if items.iter().any(|item| item.is_empty()) {
@@ -764,7 +1315,6 @@ fn split_value_list(input: &str) -> Result<Vec<&str>, ()> {
     let mut items = Vec::new();
     let mut start = 0usize;
     let mut in_text = false;
-
     for (index, ch) in input.char_indices() {
         if ch == '\'' {
             in_text = !in_text;
@@ -778,11 +1328,9 @@ fn split_value_list(input: &str) -> Result<Vec<&str>, ()> {
             start = index + ch.len_utf8();
         }
     }
-
     if in_text {
         return Err(());
     }
-
     let item = input[start..].trim();
     if item.is_empty() {
         return Err(());
@@ -862,7 +1410,6 @@ impl<'a> Parser<'a> {
         if !is_identifier_start(first) {
             return Err(());
         }
-
         let mut end = self.offset + first.len_utf8();
         for (relative, ch) in chars {
             if !is_identifier_continue(ch) {
@@ -870,7 +1417,6 @@ impl<'a> Parser<'a> {
             }
             end = self.offset + relative + ch.len_utf8();
         }
-
         let identifier = self.input[self.offset..end].to_string();
         self.offset = end;
         Ok(identifier)
@@ -885,7 +1431,6 @@ impl<'a> Parser<'a> {
                 end += ch.len_utf8();
             }
         }
-
         let digit_start = end;
         for (relative, ch) in self.input[digit_start..].char_indices() {
             if !ch.is_ascii_digit() {
@@ -893,7 +1438,6 @@ impl<'a> Parser<'a> {
             }
             end = digit_start + relative + ch.len_utf8();
         }
-
         if end == digit_start {
             return Err(());
         }
@@ -964,26 +1508,73 @@ fn encode_row_record(table: &str, values: &[Value]) -> Vec<u8> {
     let mut record = Vec::new();
     record.extend_from_slice(SQL_RECORD_PREFIX);
     record.push(ROW_RECORD);
-    write_string_u16(&mut record, table);
-    write_u16(&mut record, values.len() as u16);
+    encode_row_body(&mut record, table, values);
+    record
+}
+
+fn encode_secondary_metadata_record(state: &SecondaryIndexState, table_name: &str) -> Vec<u8> {
+    let mut record = Vec::new();
+    record.extend_from_slice(SQL_RECORD_PREFIX);
+    record.push(SECONDARY_METADATA_RECORD);
+    write_u64(&mut record, state.build_id);
+    write_string_u16(&mut record, &state.name);
+    write_string_u16(&mut record, table_name);
+    write_u16(&mut record, state.indexed_column as u16);
+    record.push(state.tie_break_mode.to_byte());
+    record
+}
+
+fn encode_secondary_entry_record(entry: &EmbeddedIndexEntry) -> Vec<u8> {
+    let mut record = Vec::new();
+    record.extend_from_slice(SQL_RECORD_PREFIX);
+    record.push(SECONDARY_ENTRY_RECORD);
+    encode_embedded_entry(&mut record, entry);
+    record
+}
+
+fn encode_indexed_row_record(
+    table: &str,
+    values: &[Value],
+    entries: &[EmbeddedIndexEntry],
+) -> Vec<u8> {
+    let mut record = Vec::new();
+    record.extend_from_slice(SQL_RECORD_PREFIX);
+    record.push(INDEXED_ROW_RECORD);
+    encode_row_body(&mut record, table, values);
+    write_u16(&mut record, entries.len() as u16);
+    for entry in entries {
+        encode_embedded_entry(&mut record, entry);
+    }
+    record
+}
+
+fn encode_row_body(record: &mut Vec<u8>, table: &str, values: &[Value]) {
+    write_string_u16(record, table);
+    write_u16(record, values.len() as u16);
     for value in values {
         record.push(value.column_type().to_byte());
         match value {
-            Value::Int(value) => write_string_u32(&mut record, &value.to_string()),
-            Value::Text(value) => write_string_u32(&mut record, value),
+            Value::Int(value) => write_string_u32(record, &value.to_string()),
+            Value::Text(value) => write_string_u32(record, value),
         }
     }
-    record
+}
+
+fn encode_embedded_entry(record: &mut Vec<u8>, entry: &EmbeddedIndexEntry) {
+    write_u64(record, entry.build_id);
+    write_string_u16(record, &entry.index_name);
+    write_i64(record, entry.indexed_key);
+    write_i64(record, entry.tie_break);
+    write_u64(record, entry.row_position);
 }
 
 fn decode_record(record: &[u8]) -> Result<LogicalRecord, SqlError> {
     if !record.starts_with(SQL_RECORD_PREFIX) {
         return Err(SqlError::InvalidStorageRecord);
     }
-
     let mut reader = RecordReader::new(&record[SQL_RECORD_PREFIX.len()..]);
     let kind = reader.read_u8()?;
-    match kind {
+    let decoded = match kind {
         CATALOG_RECORD => {
             let table = reader.read_string_u16()?;
             let column_count = reader.read_u16()? as usize;
@@ -1009,39 +1600,65 @@ fn decode_record(record: &[u8]) -> Result<LogicalRecord, SqlError> {
                 };
                 column.is_primary_key = true;
             }
-            reader.finish()?;
-            Ok(LogicalRecord::Catalog { table, columns })
+            LogicalRecord::Catalog { table, columns }
         }
         ROW_RECORD => {
-            let table = reader.read_string_u16()?;
-            let value_count = reader.read_u16()? as usize;
-            let mut values = Vec::with_capacity(value_count);
-            for _ in 0..value_count {
-                let value_type = ColumnType::from_byte(reader.read_u8()?)
-                    .ok_or(SqlError::InvalidStorageRecord)?;
-                let raw_value = reader.read_string_u32()?;
-                let value = match value_type {
-                    ColumnType::Int => {
-                        let parsed = raw_value
-                            .parse::<i64>()
-                            .map_err(|_| SqlError::InvalidStorageRecord)?;
-                        if raw_value != parsed.to_string() {
-                            return Err(SqlError::InvalidStorageRecord);
-                        }
-                        Value::Int(parsed)
-                    }
-                    ColumnType::Text => Value::Text(raw_value),
-                };
-                values.push(value);
-            }
-            reader.finish()?;
-            Ok(LogicalRecord::Row { table, values })
+            let (table, values) = reader.read_row_body()?;
+            LogicalRecord::Row { table, values }
         }
-        _ => Err(SqlError::InvalidStorageRecord),
-    }
+        SECONDARY_ENTRY_RECORD => {
+            let entry = reader.read_embedded_entry()?;
+            LogicalRecord::SecondaryIndexEntry {
+                build_id: entry.build_id,
+                index_name: entry.index_name,
+                indexed_key: entry.indexed_key,
+                tie_break: entry.tie_break,
+                row_position: entry.row_position,
+            }
+        }
+        SECONDARY_METADATA_RECORD => {
+            let build_id = reader.read_u64()?;
+            let index_name = reader.read_string_u16()?;
+            let table_name = reader.read_string_u16()?;
+            let indexed_column = reader.read_u16()?;
+            let tie_break_mode =
+                TieBreakMode::from_byte(reader.read_u8()?).ok_or(SqlError::InvalidStorageRecord)?;
+            LogicalRecord::SecondaryIndexMetadata {
+                build_id,
+                index_name,
+                table_name,
+                indexed_column,
+                tie_break_mode,
+            }
+        }
+        INDEXED_ROW_RECORD => {
+            let (table, values) = reader.read_row_body()?;
+            let entry_count = reader.read_u16()? as usize;
+            let mut entries = Vec::with_capacity(entry_count);
+            for _ in 0..entry_count {
+                entries.push(reader.read_embedded_entry()?);
+            }
+            LogicalRecord::IndexedRow {
+                table,
+                values,
+                entries,
+            }
+        }
+        _ => return Err(SqlError::InvalidStorageRecord),
+    };
+    reader.finish()?;
+    Ok(decoded)
 }
 
 fn write_u16(output: &mut Vec<u8>, value: u16) {
+    output.extend_from_slice(&value.to_le_bytes());
+}
+
+fn write_u64(output: &mut Vec<u8>, value: u64) {
+    output.extend_from_slice(&value.to_le_bytes());
+}
+
+fn write_i64(output: &mut Vec<u8>, value: i64) {
     output.extend_from_slice(&value.to_le_bytes());
 }
 
@@ -1079,6 +1696,24 @@ impl<'a> RecordReader<'a> {
         Ok(u16::from_le_bytes([bytes[0], bytes[1]]))
     }
 
+    fn read_u64(&mut self) -> Result<u64, SqlError> {
+        let bytes = self.read_exact(8)?;
+        Ok(u64::from_le_bytes(
+            bytes
+                .try_into()
+                .map_err(|_| SqlError::InvalidStorageRecord)?,
+        ))
+    }
+
+    fn read_i64(&mut self) -> Result<i64, SqlError> {
+        let bytes = self.read_exact(8)?;
+        Ok(i64::from_le_bytes(
+            bytes
+                .try_into()
+                .map_err(|_| SqlError::InvalidStorageRecord)?,
+        ))
+    }
+
     fn read_string_u16(&mut self) -> Result<String, SqlError> {
         let len = self.read_u16()? as usize;
         self.read_string(len)
@@ -1093,6 +1728,47 @@ impl<'a> RecordReader<'a> {
     fn read_string(&mut self, len: usize) -> Result<String, SqlError> {
         let bytes = self.read_exact(len)?;
         String::from_utf8(bytes.to_vec()).map_err(|_| SqlError::InvalidStorageRecord)
+    }
+
+    fn read_row_body(&mut self) -> Result<(String, Vec<Value>), SqlError> {
+        let table = self.read_string_u16()?;
+        let value_count = self.read_u16()? as usize;
+        let mut values = Vec::with_capacity(value_count);
+        for _ in 0..value_count {
+            let value_type =
+                ColumnType::from_byte(self.read_u8()?).ok_or(SqlError::InvalidStorageRecord)?;
+            let raw_value = self.read_string_u32()?;
+            let value = match value_type {
+                ColumnType::Int => {
+                    let parsed = raw_value
+                        .parse::<i64>()
+                        .map_err(|_| SqlError::InvalidStorageRecord)?;
+                    if raw_value != parsed.to_string() {
+                        return Err(SqlError::InvalidStorageRecord);
+                    }
+                    Value::Int(parsed)
+                }
+                ColumnType::Text => Value::Text(raw_value),
+            };
+            values.push(value);
+        }
+        Ok((table, values))
+    }
+
+    fn read_embedded_entry(&mut self) -> Result<EmbeddedIndexEntry, SqlError> {
+        let build_id = self.read_u64()?;
+        let index_name = self.read_string_u16()?;
+        let indexed_key = self.read_i64()?;
+        let tie_break = self.read_i64()?;
+        let row_position = self.read_u64()?;
+        Ok(EmbeddedIndexEntry {
+            build_id,
+            index_name_key: normalize_identifier(&index_name),
+            index_name,
+            indexed_key,
+            tie_break,
+            row_position,
+        })
     }
 
     fn read_exact(&mut self, len: usize) -> Result<&'a [u8], SqlError> {

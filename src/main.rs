@@ -76,9 +76,7 @@ fn exit_with_sql_error(error: SqlError) -> ! {
     match error {
         SqlError::Unsupported(statement) => {
             eprintln!("error: unsupported SQL statement: {statement}");
-            eprintln!(
-                "hint: supported SQL subset: CREATE TABLE, INSERT INTO ... VALUES, SELECT * FROM ..., SELECT * FROM ... WHERE <primary_key> = <int>;"
-            );
+            eprintln!("hint: supported SQL subset is documented in docs/sql_subset.md.");
             process::exit(2);
         }
         SqlError::Malformed(statement) => {

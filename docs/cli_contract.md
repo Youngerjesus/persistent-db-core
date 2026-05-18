@@ -1,8 +1,8 @@
 # V1 `db` CLI Contract
 
 This slice defines the deterministic command-line contract for the `db` binary,
-including the minimal SQL execution path, primary-key lookup path, and database
-check path.
+including the minimal SQL execution path, primary-key lookup path, secondary
+index lookup/range path, and database check path.
 
 ## Supported Commands
 
@@ -82,10 +82,25 @@ lookup and prints only the matching row, or only the header when the key is
 missing. Multiple `SELECT` statements repeat the header with no blank line,
 separator, or count line.
 
-Successful `CREATE TABLE` and `INSERT` mutations are durable across later
-`db exec` process starts for the same database path. WAL sidecar details are
-documented in `docs/file_format.md`; they do not change successful `db exec`
-stdout, stderr, or exit codes.
+`CREATE INDEX <index> ON <table>(<integer_column>);` creates a durable
+secondary index over an existing `INT` column. Successful `CREATE TABLE`,
+`INSERT`, and `CREATE INDEX` mutations exit `0`, write empty stdout/stderr
+unless a later `SELECT` writes rows, and are durable across later `db exec`
+process starts for the same database path. WAL sidecar details are documented
+in `docs/file_format.md`; they do not change successful `db exec` stdout,
+stderr, or exit codes.
+
+After `CREATE INDEX`, `SELECT * FROM <table> WHERE <indexed_column> = <int>;`
+uses the matching secondary index. `SELECT * FROM <table> WHERE
+<indexed_column> BETWEEN <low_int> AND <high_int>;` uses an inclusive bounded
+secondary-index range scan. Results are ordered by secondary key ascending and
+then by deterministic tie-break ascending. For tables with a primary key, the
+tie-break is the primary-key value. For tables without a primary key, the
+tie-break is durable row insertion order. If `low_int > high_int`, the range
+query still uses the secondary range path and prints the header only.
+
+Before a secondary index exists, non-primary-key equality and `BETWEEN`
+predicates remain unsupported SQL and must not silently full-scan.
 
 The supported SQL subset is documented in `docs/sql_subset.md`.
 
@@ -93,7 +108,7 @@ Unsupported SQL exits `2`, writes empty stdout, and uses this stderr:
 
 ```text
 error: unsupported SQL statement: SELECT id FROM users;
-hint: supported SQL subset: CREATE TABLE, INSERT INTO ... VALUES, SELECT * FROM ..., SELECT * FROM ... WHERE <primary_key> = <int>;
+hint: supported SQL subset is documented in docs/sql_subset.md.
 ```
 
 Malformed SQL exits `2`, writes empty stdout, and uses this stderr:
@@ -116,6 +131,13 @@ Case-variant duplicate table input reports the new input spelling, such as
 ```text
 error: SQL semantic error: table not found: missing
 hint: create the table before INSERT or SELECT.
+```
+
+`CREATE INDEX` against a missing table uses this more specific hint:
+
+```text
+error: SQL semantic error: table not found: missing
+hint: create the table before INSERT, SELECT, or CREATE INDEX.
 ```
 
 ```text
@@ -144,6 +166,50 @@ hint: primary key values must be unique.
 ```text
 error: SQL semantic error: primary key column must be INT: id
 hint: this SQL slice supports one INT PRIMARY KEY column per table.
+```
+
+```text
+error: SQL semantic error: column not found for index idx_users_age: age
+hint: create the index on an existing table column.
+```
+
+```text
+error: SQL semantic error: secondary index column must be INT: name
+hint: this SQL slice supports secondary indexes only on INT columns.
+```
+
+```text
+error: SQL semantic error: index already exists: idx_users_age
+hint: use a new index name for CREATE INDEX in this database.
+```
+
+Required secondary-index examples:
+
+```text
+CREATE TABLE users (id INT PRIMARY KEY, age INT, name TEXT);
+INSERT INTO users VALUES (3, 20, 'cal');
+INSERT INTO users VALUES (1, 10, 'ada');
+INSERT INTO users VALUES (2, 20, 'bea');
+CREATE INDEX idx_users_age ON users(age);
+SELECT * FROM users WHERE age = 20;
+```
+
+stdout:
+
+```text
+id|age|name
+2|20|bea
+3|20|cal
+```
+
+With the same fixture, `SELECT * FROM users WHERE age BETWEEN 10 AND 20;`
+writes:
+
+```text
+id|age|name
+1|10|ada
+2|20|bea
+3|20|cal
 ```
 
 Invalid SQL logical records exit `1`, write empty stdout, and use this stderr:
@@ -175,7 +241,8 @@ error: db check failed: <invariant label>
 ```
 
 Documented invariant labels include `storage record readability`,
-`catalog/record invariant`, `primary index`, and `wal replay consistency`.
+`catalog/record invariant`, `primary index`, `secondary index`, and
+`wal replay consistency`.
 
 Missing paths, directories, and paths that cannot be opened or read exit `1`,
 write empty stdout, and use this stderr shape with path context:
@@ -197,10 +264,11 @@ Invoking any reserved command currently follows the unsupported input behavior.
 
 ## Non-Goals
 
-This slice does not implement projection, general `WHERE`, `ORDER BY`, `JOIN`,
-`UPDATE`, `DELETE`, public transaction commands, secondary indexes, networking,
-multi-process concurrency, or distributed storage. Primary indexes are rebuilt
-from durable SQL row records on open; there is no separate persisted index
-metadata, so existing row-only SQL files remain compatible and missing index
-metadata is not a failure mode. Corrupt SQL row records, including duplicate
-persisted primary-key values, fail with the invalid SQL storage record error.
+This slice does not implement projection, general `WHERE` beyond primary-key
+equality and indexed `INT` equality/range predicates, `ORDER BY`, `JOIN`,
+`UPDATE`, `DELETE`, public transaction commands, networking, multi-process
+concurrency, or distributed storage. Primary indexes are rebuilt from durable
+SQL row records on open. Secondary indexes are persisted with SQL logical
+records documented in `docs/file_format.md`; existing row-only SQL files remain
+compatible. Corrupt SQL row records, including duplicate persisted primary-key
+values, fail with the invalid SQL storage record error.
