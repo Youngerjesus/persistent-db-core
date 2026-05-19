@@ -45,11 +45,12 @@ SQL payloads are UTF-8 compatible and start with the prefix `PDBSQL1\0`.
 The byte after the prefix is the SQL logical record kind: `C` for catalog, `R`
 for row, `E` for secondary-index backfill entry, `X` for committed
 secondary-index metadata, and `I` for one atomic post-index row plus its
-embedded secondary-index entries. Catalog records include table name and
-ordered column metadata. Row records include table name and ordered typed
-values. Arbitrary records without the SQL prefix are valid page-storage
-payloads, but they are not valid SQL database records and are rejected by
-`db exec` with the documented invalid SQL storage record error.
+embedded secondary-index entries. `U` updates one existing row slot and `D`
+tombstones one existing row slot. Catalog records include table name and ordered
+column metadata. Row records include table name and ordered typed values.
+Arbitrary records without the SQL prefix are valid page-storage payloads, but
+they are not valid SQL database records and are rejected by `db exec` with the
+documented invalid SQL storage record error.
 
 Catalog records may include an optional primary-key extension after the ordered
 column metadata: byte tag `P` followed by a little-endian `u16` zero-based
@@ -129,6 +130,42 @@ repeat embedded_entry_count:
   u64 row_position little-endian
 ```
 
+`UPDATE` writes exactly one `U` record. The row slot remains stable, which keeps
+secondary-index row positions meaningful across mutation replay. The record
+stores the target row position, replacement row values, and the complete set of
+embedded secondary-index entries expected for the replacement row.
+
+```text
+PDBSQL1\0
+U
+u64 row_position little-endian
+u16 table_name_len little-endian
+table_name UTF-8 bytes
+u16 value_count little-endian
+repeat value_count:
+  u8 type tag: I for INT, T for TEXT
+  u32 value_len little-endian
+  value UTF-8 bytes
+u16 embedded_entry_count little-endian
+repeat embedded_entry_count:
+  u64 index_build_id little-endian
+  u16 index_name_len little-endian
+  index_name UTF-8 bytes
+  i64 indexed_key little-endian
+  i64 tie_break little-endian
+  u64 row_position little-endian
+```
+
+`DELETE` writes exactly one `D` record and tombstones an existing row slot.
+
+```text
+PDBSQL1\0
+D
+u16 table_name_len little-endian
+table_name UTF-8 bytes
+u64 row_position little-endian
+```
+
 Index names and table/column names are stored with their input spelling.
 Runtime attachment and duplicate-index checks compare names ASCII
 case-insensitively.
@@ -139,7 +176,7 @@ Opening or reading a file validates the header and every declared data page. Sho
 
 ## Compatibility Note
 
-V1 is pre-launch and does not guarantee backward compatibility for existing user data. After this page and record format is introduced, format changes must not be made implicitly: the documentation and deterministic tests must be updated together with any intentional format change. SQL logical-record evolution must preserve the lower-level page framing unless a future task explicitly changes the page format contract. The primary-key catalog extension is optional so existing row-only SQL database files remain readable as non-primary-key tables. Secondary-index records are additive, and existing no-index databases remain readable and can be backfilled by a later `CREATE INDEX`.
+V1 is pre-launch and does not guarantee backward compatibility for existing user data. After this page and record format is introduced, format changes must not be made implicitly: the documentation and deterministic tests must be updated together with any intentional format change. SQL logical-record evolution must preserve the lower-level page framing unless a future task explicitly changes the page format contract. The primary-key catalog extension is optional so existing row-only SQL database files remain readable as non-primary-key tables. Secondary-index records are additive, and existing no-index databases remain readable and can be backfilled by a later `CREATE INDEX`. Mutation records are additive SQL logical records above unchanged page framing; existing row-only and existing secondary-index databases reopen unchanged.
 
 ## Write-Ahead Log Sidecar
 
@@ -202,6 +239,8 @@ primary-index metadata is not a V1 file-format failure mode.
 `secondary index`. This includes metadata that references a missing table or
 non-`INT` column, duplicate index names, missing committed entries, wrong keys,
 wrong tie-breaks, invalid row positions, duplicate `(key, tie_break)` entries,
-and malformed `I` records with missing, extra, wrong-index, wrong-key,
-wrong-tie-break, or wrong-row-position embedded entries. Orphan `E` records
-without matching committed `X` metadata are ignored.
+malformed `I` or `U` records with missing, extra, wrong-index, wrong-key,
+wrong-tie-break, or wrong-row-position embedded entries, stale entries left
+after update, dangling entries for deleted or nonexistent row slots, and missing
+entries for visible indexed rows. Orphan `E` records without matching committed
+`X` metadata are ignored.

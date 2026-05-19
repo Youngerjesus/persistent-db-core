@@ -84,11 +84,19 @@ separator, or count line.
 
 `CREATE INDEX <index> ON <table>(<integer_column>);` creates a durable
 secondary index over an existing `INT` column. Successful `CREATE TABLE`,
-`INSERT`, and `CREATE INDEX` mutations exit `0`, write empty stdout/stderr
+`INSERT`, `CREATE INDEX`, primary-key-targeted `UPDATE`, and
+primary-key-targeted `DELETE` mutations exit `0`, write empty stdout/stderr
 unless a later `SELECT` writes rows, and are durable across later `db exec`
 process starts for the same database path. WAL sidecar details are documented
 in `docs/file_format.md`; they do not change successful `db exec` stdout,
 stderr, or exit codes.
+
+`UPDATE <table> SET <non_primary_key_column> = <value> WHERE
+<primary_key_column> = <int>;` updates one matching row. `DELETE FROM <table>
+WHERE <primary_key_column> = <int>;` deletes one matching row. Missing
+primary-key targets are successful no-ops. After either mutation, table scans,
+primary-key lookups, and secondary-index equality/range scans must agree across
+later process starts.
 
 After `CREATE INDEX`, `SELECT * FROM <table> WHERE <indexed_column> = <int>;`
 uses the matching secondary index. `SELECT * FROM <table> WHERE
@@ -266,9 +274,10 @@ Invoking any reserved command currently follows the unsupported input behavior.
 
 This slice does not implement projection, general `WHERE` beyond primary-key
 equality and indexed `INT` equality/range predicates, `ORDER BY`, `JOIN`,
-`UPDATE`, `DELETE`, public transaction commands, networking, multi-process
-concurrency, or distributed storage. Primary indexes are rebuilt from durable
-SQL row records on open. Secondary indexes are persisted with SQL logical
-records documented in `docs/file_format.md`; existing row-only SQL files remain
-compatible. Corrupt SQL row records, including duplicate persisted primary-key
-values, fail with the invalid SQL storage record error.
+non-primary-key-targeted mutations, primary-key updates, public transaction
+commands, networking, multi-process concurrency, or distributed storage. Primary
+indexes are rebuilt from durable SQL row records on open. Secondary indexes are
+persisted with SQL logical records documented in `docs/file_format.md`;
+existing row-only SQL files remain compatible. Corrupt SQL row records,
+including duplicate persisted primary-key values, fail with the invalid SQL
+storage record error.

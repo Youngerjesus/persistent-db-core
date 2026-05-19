@@ -1,5 +1,5 @@
 use crate::index::{PrimaryIndex, SecondaryIndex};
-use crate::storage::{PageStore, StorageError};
+use crate::storage::{self, PageStore, StorageError};
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::Path;
@@ -10,6 +10,8 @@ const ROW_RECORD: u8 = b'R';
 const SECONDARY_METADATA_RECORD: u8 = b'X';
 const SECONDARY_ENTRY_RECORD: u8 = b'E';
 const INDEXED_ROW_RECORD: u8 = b'I';
+const UPDATE_ROW_RECORD: u8 = b'U';
+const DELETE_ROW_RECORD: u8 = b'D';
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SqlError {
@@ -120,7 +122,7 @@ struct SecondaryIndexState {
 struct Table {
     name: String,
     columns: Vec<Column>,
-    rows: Vec<Vec<Value>>,
+    rows: Vec<Option<Vec<Value>>>,
     primary_key_column: Option<usize>,
     primary_index: PrimaryIndex,
     secondary_indexes: Vec<SecondaryIndexState>,
@@ -162,6 +164,18 @@ enum Statement {
     Insert {
         table: String,
         values: Vec<Value>,
+    },
+    Update {
+        table: String,
+        set_column: String,
+        value: Value,
+        where_column: String,
+        key: i64,
+    },
+    Delete {
+        table: String,
+        where_column: String,
+        key: i64,
     },
     SelectAll {
         table: String,
@@ -208,6 +222,16 @@ enum LogicalRecord {
         table: String,
         values: Vec<Value>,
         entries: Vec<EmbeddedIndexEntry>,
+    },
+    UpdateRow {
+        table: String,
+        row_position: u64,
+        values: Vec<Value>,
+        entries: Vec<EmbeddedIndexEntry>,
+    },
+    DeleteRow {
+        table: String,
+        row_position: u64,
     },
 }
 
@@ -366,6 +390,33 @@ impl Database {
                     append_loaded_row_after_validation(table, values)
                         .map_err(|_| "catalog/record invariant")?;
                 }
+                LogicalRecord::UpdateRow {
+                    table,
+                    row_position,
+                    values,
+                    entries,
+                } => {
+                    let table = database
+                        .find_table_mut(&table)
+                        .ok_or("catalog/record invariant")?;
+                    apply_loaded_update_after_validation(
+                        table,
+                        row_position as usize,
+                        values,
+                        entries,
+                    )
+                    .map_err(|_| "secondary index")?;
+                }
+                LogicalRecord::DeleteRow {
+                    table,
+                    row_position,
+                } => {
+                    let table = database
+                        .find_table_mut(&table)
+                        .ok_or("catalog/record invariant")?;
+                    apply_loaded_delete_after_validation(table, row_position as usize)
+                        .map_err(|_| "secondary index")?;
+                }
             }
         }
 
@@ -406,6 +457,7 @@ impl Database {
 pub fn execute(path: impl AsRef<Path>, sql: &str) -> Result<String, SqlError> {
     let path = path.as_ref();
     initialize_empty_sql_file(path)?;
+    validate_replayable_records_before_open(path)?;
     let mut store = PageStore::open(path)?;
     let records = store.read_records()?;
     let mut logical_record_count = records.len() as u64;
@@ -438,6 +490,32 @@ pub fn execute(path: impl AsRef<Path>, sql: &str) -> Result<String, SqlError> {
                 execute_insert(&mut store, &mut database, table, values)?;
                 logical_record_count += 1;
             }
+            Statement::Update {
+                table,
+                set_column,
+                value,
+                where_column,
+                key,
+            } => {
+                let appended = execute_update(
+                    &mut store,
+                    &mut database,
+                    table,
+                    set_column,
+                    value,
+                    where_column,
+                    key,
+                )?;
+                logical_record_count += appended;
+            }
+            Statement::Delete {
+                table,
+                where_column,
+                key,
+            } => {
+                let appended = execute_delete(&mut store, &mut database, table, where_column, key)?;
+                logical_record_count += appended;
+            }
             Statement::SelectAll { table } => {
                 execute_select(&database, &table, &mut stdout)?;
             }
@@ -463,6 +541,7 @@ pub fn validate_records_for_check(records: Vec<Vec<u8>>) -> Result<(), &'static 
 pub fn plan_query_path_for_test(path: impl AsRef<Path>, sql: &str) -> Result<QueryPath, SqlError> {
     let path = path.as_ref();
     initialize_empty_sql_file(path)?;
+    validate_replayable_records_before_open(path)?;
     let mut store = PageStore::open(path)?;
     let database = Database::from_records(store.read_records()?)?;
     let statements = parse_statements(sql)?;
@@ -644,6 +723,9 @@ fn execute_create_index(
     };
     let mut entries = Vec::new();
     for (row_position, row) in table.rows.iter().enumerate() {
+        let Some(row) = row else {
+            continue;
+        };
         entries.push(
             expected_entry_for_index(&state, table, row, row_position)
                 .map_err(|_| SqlError::InvalidStorageRecord)?,
@@ -721,6 +803,97 @@ fn execute_insert(
     Ok(())
 }
 
+fn execute_update(
+    store: &mut PageStore,
+    database: &mut Database,
+    table: String,
+    set_column: String,
+    value: Value,
+    where_column: String,
+    key: i64,
+) -> Result<u64, SqlError> {
+    let existing = database
+        .find_table_mut(&table)
+        .ok_or_else(|| table_not_found(&table))?;
+    let primary_key_column = require_primary_key_predicate(existing, &where_column)?;
+    let Some(set_column_index) = existing
+        .columns
+        .iter()
+        .position(|column| column.name.eq_ignore_ascii_case(&set_column))
+    else {
+        return Err(SqlError::Semantic {
+            message: format!("column not found for UPDATE: {set_column}"),
+            hint: "UPDATE can SET an existing non-primary-key column.",
+        });
+    };
+    if set_column_index == primary_key_column {
+        return Err(SqlError::Semantic {
+            message: format!("cannot update primary key column: {set_column}"),
+            hint: "this SQL slice supports UPDATE of non-primary-key columns only.",
+        });
+    }
+    if existing.columns[set_column_index].column_type != value.column_type() {
+        return Err(SqlError::Semantic {
+            message: format!(
+                "type mismatch for column {}: expected {}, got {}",
+                existing.columns[set_column_index].name,
+                existing.columns[set_column_index].column_type.as_str(),
+                value.column_type().as_str()
+            ),
+            hint: "UPDATE values must match the declared column type.",
+        });
+    }
+    let Some(row_position) = existing.primary_index.get(key) else {
+        return Ok(0);
+    };
+
+    let current = existing
+        .rows
+        .get(row_position)
+        .and_then(Option::as_ref)
+        .ok_or(SqlError::InvalidStorageRecord)?;
+    let mut values = current.clone();
+    values[set_column_index] = value;
+    validate_values_for_table(existing, &values)?;
+    let entries = expected_entries_for_row(existing, &values, row_position)
+        .map_err(|_| SqlError::InvalidStorageRecord)?;
+    store.append_record(&encode_update_row_record(
+        &existing.name,
+        row_position,
+        &values,
+        &entries,
+    ))?;
+    apply_update_to_table(existing, row_position, values, &entries)?;
+    Ok(1)
+}
+
+fn execute_delete(
+    store: &mut PageStore,
+    database: &mut Database,
+    table: String,
+    where_column: String,
+    key: i64,
+) -> Result<u64, SqlError> {
+    let existing = database
+        .find_table_mut(&table)
+        .ok_or_else(|| table_not_found(&table))?;
+    require_primary_key_predicate(existing, &where_column)?;
+    let Some(row_position) = existing.primary_index.get(key) else {
+        return Ok(0);
+    };
+    if existing
+        .rows
+        .get(row_position)
+        .and_then(Option::as_ref)
+        .is_none()
+    {
+        return Err(SqlError::InvalidStorageRecord);
+    }
+    store.append_record(&encode_delete_row_record(&existing.name, row_position))?;
+    apply_delete_to_table(existing, row_position)?;
+    Ok(1)
+}
+
 fn execute_select(database: &Database, table: &str, stdout: &mut String) -> Result<(), SqlError> {
     let existing = database
         .find_table(table)
@@ -728,10 +901,13 @@ fn execute_select(database: &Database, table: &str, stdout: &mut String) -> Resu
     write_header(existing, stdout);
     if existing.primary_key_column.is_some() {
         for row_position in existing.primary_index.ordered_positions() {
-            write_row(&existing.rows[row_position], stdout);
+            let row = existing.rows[row_position]
+                .as_ref()
+                .ok_or(SqlError::InvalidStorageRecord)?;
+            write_row(row, stdout);
         }
     } else {
-        for row in &existing.rows {
+        for row in existing.rows.iter().flatten() {
             write_row(row, stdout);
         }
     }
@@ -756,7 +932,10 @@ fn execute_select_where(
             Predicate::Range { low, high } => index.index.range_positions(low, high),
         };
         for row_position in positions {
-            write_row(&existing.rows[row_position], stdout);
+            let row = existing.rows[row_position]
+                .as_ref()
+                .ok_or(SqlError::InvalidStorageRecord)?;
+            write_row(row, stdout);
         }
         return Ok(());
     }
@@ -770,7 +949,10 @@ fn execute_select_where(
                 return Err(SqlError::Unsupported(raw.to_string()));
             };
             if let Some(row_position) = existing.primary_index.get(key) {
-                write_row(&existing.rows[row_position], stdout);
+                let row = existing.rows[row_position]
+                    .as_ref()
+                    .ok_or(SqlError::InvalidStorageRecord)?;
+                write_row(row, stdout);
             }
             return Ok(());
         }
@@ -791,8 +973,142 @@ fn append_loaded_row_after_validation(
             .insert(key, table.rows.len())
             .map_err(|_| SqlError::InvalidStorageRecord)?;
     }
-    table.rows.push(values);
+    table.rows.push(Some(values));
     Ok(())
+}
+
+fn apply_loaded_update_after_validation(
+    table: &mut Table,
+    row_position: usize,
+    values: Vec<Value>,
+    entries: Vec<EmbeddedIndexEntry>,
+) -> Result<(), SqlError> {
+    validate_values_for_table(table, &values).map_err(|_| SqlError::InvalidStorageRecord)?;
+    let expected_entries = expected_entries_for_row(table, &values, row_position)
+        .map_err(|_| SqlError::InvalidStorageRecord)?;
+    if canonical_entries(&entries) != canonical_entries(&expected_entries) {
+        return Err(SqlError::InvalidStorageRecord);
+    }
+    apply_update_to_table(table, row_position, values, &expected_entries)
+}
+
+fn apply_loaded_delete_after_validation(
+    table: &mut Table,
+    row_position: usize,
+) -> Result<(), SqlError> {
+    apply_delete_to_table(table, row_position)
+}
+
+fn apply_update_to_table(
+    table: &mut Table,
+    row_position: usize,
+    values: Vec<Value>,
+    new_entries: &[EmbeddedIndexEntry],
+) -> Result<(), SqlError> {
+    let old_values = table
+        .rows
+        .get(row_position)
+        .and_then(Option::as_ref)
+        .ok_or(SqlError::InvalidStorageRecord)?
+        .clone();
+    let old_entries = expected_entries_for_row(table, &old_values, row_position)
+        .map_err(|_| SqlError::InvalidStorageRecord)?;
+    if primary_key_value(table, &old_values)? != primary_key_value(table, &values)? {
+        return Err(SqlError::InvalidStorageRecord);
+    }
+
+    for entry in &old_entries {
+        let index = table
+            .secondary_indexes
+            .iter_mut()
+            .find(|index| {
+                index.build_id == entry.build_id
+                    && index.name.eq_ignore_ascii_case(&entry.index_name)
+            })
+            .ok_or(SqlError::InvalidStorageRecord)?;
+        if index.index.remove(entry.indexed_key, entry.tie_break) != Some(row_position) {
+            return Err(SqlError::InvalidStorageRecord);
+        }
+    }
+    for entry in new_entries {
+        let index = table
+            .secondary_indexes
+            .iter_mut()
+            .find(|index| {
+                index.build_id == entry.build_id
+                    && index.name.eq_ignore_ascii_case(&entry.index_name)
+            })
+            .ok_or(SqlError::InvalidStorageRecord)?;
+        index
+            .index
+            .insert(entry.indexed_key, entry.tie_break, row_position)
+            .map_err(|_| SqlError::InvalidStorageRecord)?;
+    }
+    table.rows[row_position] = Some(values);
+    Ok(())
+}
+
+fn apply_delete_to_table(table: &mut Table, row_position: usize) -> Result<(), SqlError> {
+    let old_values = table
+        .rows
+        .get(row_position)
+        .and_then(Option::as_ref)
+        .ok_or(SqlError::InvalidStorageRecord)?
+        .clone();
+    if let Some(primary_key_column) = table.primary_key_column {
+        let Value::Int(key) = old_values[primary_key_column] else {
+            return Err(SqlError::InvalidStorageRecord);
+        };
+        if table.primary_index.remove(key) != Some(row_position) {
+            return Err(SqlError::InvalidStorageRecord);
+        }
+    }
+    let old_entries = expected_entries_for_row(table, &old_values, row_position)
+        .map_err(|_| SqlError::InvalidStorageRecord)?;
+    for entry in &old_entries {
+        let index = table
+            .secondary_indexes
+            .iter_mut()
+            .find(|index| {
+                index.build_id == entry.build_id
+                    && index.name.eq_ignore_ascii_case(&entry.index_name)
+            })
+            .ok_or(SqlError::InvalidStorageRecord)?;
+        if index.index.remove(entry.indexed_key, entry.tie_break) != Some(row_position) {
+            return Err(SqlError::InvalidStorageRecord);
+        }
+    }
+    table.rows[row_position] = None;
+    Ok(())
+}
+
+fn primary_key_value(table: &Table, values: &[Value]) -> Result<Option<i64>, SqlError> {
+    let Some(primary_key_column) = table.primary_key_column else {
+        return Ok(None);
+    };
+    let Value::Int(key) = values[primary_key_column] else {
+        return Err(SqlError::InvalidStorageRecord);
+    };
+    Ok(Some(key))
+}
+
+fn require_primary_key_predicate(table: &Table, where_column: &str) -> Result<usize, SqlError> {
+    let Some(primary_key_column) = table.primary_key_column else {
+        return Err(SqlError::Semantic {
+            message: format!("primary key predicate required for table {}", table.name),
+            hint: "UPDATE and DELETE require WHERE on the INT PRIMARY KEY column.",
+        });
+    };
+    if !table.columns[primary_key_column]
+        .name
+        .eq_ignore_ascii_case(where_column)
+    {
+        return Err(SqlError::Semantic {
+            message: format!("primary key predicate required for table {}", table.name),
+            hint: "UPDATE and DELETE require WHERE on the INT PRIMARY KEY column.",
+        });
+    }
+    Ok(primary_key_column)
 }
 
 fn validate_values_for_table(table: &Table, values: &[Value]) -> Result<(), SqlError> {
@@ -843,6 +1159,9 @@ fn validate_and_insert_entries(
 ) -> Result<(), &'static str> {
     let mut expected = Vec::new();
     for (row_position, row) in table.rows.iter().enumerate() {
+        let Some(row) = row else {
+            continue;
+        };
         expected.push(expected_entry_for_index(state, table, row, row_position)?);
     }
     if canonical_entries(entries) != canonical_entries(&expected) {
@@ -866,6 +1185,9 @@ fn validate_secondary_indexes(database: &Database) -> Result<(), &'static str> {
         for state in &table.secondary_indexes {
             let mut rebuilt = SecondaryIndex::new();
             for (row_position, row) in table.rows.iter().enumerate() {
+                let Some(row) = row else {
+                    continue;
+                };
                 let entry = expected_entry_for_index(state, table, row, row_position)?;
                 rebuilt
                     .insert(entry.indexed_key, entry.tie_break, row_position)
@@ -983,6 +1305,20 @@ fn initialize_empty_sql_file(path: &Path) -> Result<(), SqlError> {
     }
 }
 
+fn validate_replayable_records_before_open(path: &Path) -> Result<(), SqlError> {
+    if !path.exists() {
+        return Ok(());
+    }
+    let snapshot = storage::read_records_for_check(path)?;
+    let mut records = snapshot.records;
+    records.extend(storage::read_committed_wal_records_for_check(
+        path,
+        snapshot.record_count,
+    )?);
+    Database::from_records(records)?;
+    Ok(())
+}
+
 fn write_header(table: &Table, stdout: &mut String) {
     for (index, column) in table.columns.iter().enumerate() {
         if index > 0 {
@@ -1066,6 +1402,10 @@ fn parse_statement(raw: &str) -> Result<Statement, SqlError> {
                 SqlError::Malformed(raw.to_string())
             }
         })
+    } else if starts_with_keyword_sequence(body, &["UPDATE"]) {
+        parse_update(body).map_err(|()| SqlError::Unsupported(raw.to_string()))
+    } else if starts_with_keyword_sequence(body, &["DELETE", "FROM"]) {
+        parse_delete(body).map_err(|()| SqlError::Unsupported(raw.to_string()))
     } else if starts_with_keyword_sequence(body, &["SELECT"]) {
         parse_select(body, raw).map_err(|()| {
             if is_malformed_select_shape(body) {
@@ -1173,6 +1513,62 @@ fn parse_insert(body: &str) -> Result<Statement, ()> {
         return Err(());
     }
     Ok(Statement::Insert { table, values })
+}
+
+fn parse_update(body: &str) -> Result<Statement, ()> {
+    let mut parser = Parser::new(body);
+    parser.consume_keyword("UPDATE")?;
+    parser.require_space()?;
+    let table = parser.consume_identifier()?;
+    parser.require_space()?;
+    parser.consume_keyword("SET")?;
+    parser.require_space()?;
+    let set_column = parser.consume_identifier()?;
+    parser.skip_space();
+    parser.consume_char('=')?;
+    parser.skip_space();
+    let value = parser.consume_value_literal()?;
+    parser.require_space()?;
+    parser.consume_keyword("WHERE")?;
+    parser.require_space()?;
+    let where_column = parser.consume_identifier()?;
+    parser.skip_space();
+    parser.consume_char('=')?;
+    parser.skip_space();
+    let key = parser.consume_int_literal()?;
+    parser.skip_space();
+    parser.finish()?;
+    Ok(Statement::Update {
+        table,
+        set_column,
+        value,
+        where_column,
+        key,
+    })
+}
+
+fn parse_delete(body: &str) -> Result<Statement, ()> {
+    let mut parser = Parser::new(body);
+    parser.consume_keyword("DELETE")?;
+    parser.require_space()?;
+    parser.consume_keyword("FROM")?;
+    parser.require_space()?;
+    let table = parser.consume_identifier()?;
+    parser.require_space()?;
+    parser.consume_keyword("WHERE")?;
+    parser.require_space()?;
+    let where_column = parser.consume_identifier()?;
+    parser.skip_space();
+    parser.consume_char('=')?;
+    parser.skip_space();
+    let key = parser.consume_int_literal()?;
+    parser.skip_space();
+    parser.finish()?;
+    Ok(Statement::Delete {
+        table,
+        where_column,
+        key,
+    })
 }
 
 fn parse_select(body: &str, raw: &str) -> Result<Statement, ()> {
@@ -1446,6 +1842,23 @@ impl<'a> Parser<'a> {
         raw.parse::<i64>().map_err(|_| ())
     }
 
+    fn consume_value_literal(&mut self) -> Result<Value, ()> {
+        if self.peek_char() == Some('\'') {
+            let start = self.offset;
+            self.offset += '\''.len_utf8();
+            while let Some(ch) = self.peek_char() {
+                self.offset += ch.len_utf8();
+                if ch == '\'' {
+                    return parse_value(&self.input[start..self.offset]);
+                }
+            }
+            return Err(());
+        }
+        let start = self.offset;
+        self.consume_int_literal()?;
+        parse_value(&self.input[start..self.offset])
+    }
+
     fn consume_char(&mut self, expected: char) -> Result<(), ()> {
         if self.peek_char() != Some(expected) {
             return Err(());
@@ -1548,6 +1961,33 @@ fn encode_indexed_row_record(
     record
 }
 
+fn encode_update_row_record(
+    table: &str,
+    row_position: usize,
+    values: &[Value],
+    entries: &[EmbeddedIndexEntry],
+) -> Vec<u8> {
+    let mut record = Vec::new();
+    record.extend_from_slice(SQL_RECORD_PREFIX);
+    record.push(UPDATE_ROW_RECORD);
+    write_u64(&mut record, row_position as u64);
+    encode_row_body(&mut record, table, values);
+    write_u16(&mut record, entries.len() as u16);
+    for entry in entries {
+        encode_embedded_entry(&mut record, entry);
+    }
+    record
+}
+
+fn encode_delete_row_record(table: &str, row_position: usize) -> Vec<u8> {
+    let mut record = Vec::new();
+    record.extend_from_slice(SQL_RECORD_PREFIX);
+    record.push(DELETE_ROW_RECORD);
+    write_string_u16(&mut record, table);
+    write_u64(&mut record, row_position as u64);
+    record
+}
+
 fn encode_row_body(record: &mut Vec<u8>, table: &str, values: &[Value]) {
     write_string_u16(record, table);
     write_u16(record, values.len() as u16);
@@ -1642,6 +2082,29 @@ fn decode_record(record: &[u8]) -> Result<LogicalRecord, SqlError> {
                 table,
                 values,
                 entries,
+            }
+        }
+        UPDATE_ROW_RECORD => {
+            let row_position = reader.read_u64()?;
+            let (table, values) = reader.read_row_body()?;
+            let entry_count = reader.read_u16()? as usize;
+            let mut entries = Vec::with_capacity(entry_count);
+            for _ in 0..entry_count {
+                entries.push(reader.read_embedded_entry()?);
+            }
+            LogicalRecord::UpdateRow {
+                table,
+                row_position,
+                values,
+                entries,
+            }
+        }
+        DELETE_ROW_RECORD => {
+            let table = reader.read_string_u16()?;
+            let row_position = reader.read_u64()?;
+            LogicalRecord::DeleteRow {
+                table,
+                row_position,
             }
         }
         _ => return Err(SqlError::InvalidStorageRecord),
