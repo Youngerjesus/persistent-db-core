@@ -41,6 +41,11 @@ impl From<std::io::Error> for StorageError {
 #[derive(Debug)]
 pub struct PageStore {
     path: PathBuf,
+    next_wal_frame_id: u64,
+    durable_record_count: u64,
+    page_count: u64,
+    last_page_used: usize,
+    last_page_record_count: u16,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -67,7 +72,18 @@ impl PageStore {
 
         replay_wal(&path)?;
 
-        Ok(Self { path })
+        let next_wal_frame_id = next_wal_frame_id(&wal_path(&path))?;
+        let durable_record_count = total_record_count(&path)?;
+        let (page_count, last_page_used, last_page_record_count) = append_cursor(&path)?;
+
+        Ok(Self {
+            path,
+            next_wal_frame_id,
+            durable_record_count,
+            page_count,
+            last_page_used,
+            last_page_record_count,
+        })
     }
 
     pub fn append_record(&mut self, payload: &[u8]) -> Result<(), StorageError> {
@@ -75,9 +91,27 @@ impl PageStore {
             return Err(StorageError::RecordTooLarge);
         }
 
-        let record_count_before = total_record_count(&self.path)?;
-        append_wal_frame(&wal_path(&self.path), record_count_before, payload)?;
-        append_record_to_file(&self.path, payload)?;
+        append_wal_frame(
+            &wal_path(&self.path),
+            self.next_wal_frame_id,
+            self.durable_record_count,
+            payload,
+        )?;
+        append_record_to_file_with_cursor(
+            &self.path,
+            &mut self.page_count,
+            &mut self.last_page_used,
+            &mut self.last_page_record_count,
+            payload,
+        )?;
+        self.next_wal_frame_id = self
+            .next_wal_frame_id
+            .checked_add(1)
+            .ok_or(StorageError::Io)?;
+        self.durable_record_count = self
+            .durable_record_count
+            .checked_add(1)
+            .ok_or(StorageError::Io)?;
         Ok(())
     }
 
@@ -95,6 +129,22 @@ impl PageStore {
 
         Ok(records)
     }
+}
+
+fn append_cursor(path: &Path) -> Result<(u64, usize, u16), StorageError> {
+    validate_file(path)?;
+    let mut file = OpenOptions::new().read(true).open(path)?;
+    let page_count = read_page_count(&mut file)?;
+    if page_count == 1 {
+        return Ok((page_count, DATA_PAGE_HEADER_SIZE, 0));
+    }
+    let page = read_page(&mut file, page_count - 1)?;
+    validate_data_page(&page)?;
+    Ok((
+        page_count,
+        data_page_used(&page)? as usize,
+        data_page_record_count(&page)?,
+    ))
 }
 
 pub fn read_records_for_check(
@@ -207,48 +257,65 @@ fn validate_wal_page_append_payload(payload: &[u8]) -> Result<(), StorageError> 
     Ok(())
 }
 
-fn append_record_to_file(path: &Path, payload: &[u8]) -> Result<(), StorageError> {
-    validate_file(path)?;
+pub fn append_committed_wal_record_for_bench(
+    path: impl AsRef<Path>,
+    record_count_before: u64,
+    payload: &[u8],
+) -> Result<(), StorageError> {
+    let wal_path = wal_path(path.as_ref());
+    let frame_id = next_wal_frame_id(&wal_path)?;
+    append_wal_frame(&wal_path, frame_id, record_count_before, payload)
+}
 
-    let mut file = OpenOptions::new().read(true).write(true).open(path)?;
-    let mut page_count = read_page_count(&mut file)?;
-
-    if page_count == 1 {
-        append_empty_data_page(&mut file)?;
-        page_count = 2;
-        write_page_count(&mut file, page_count)?;
-    }
-
-    let record_size = RECORD_LENGTH_SIZE + payload.len();
-    let mut page_index = page_count - 1;
-    let mut page = read_page(&mut file, page_index)?;
-    let mut used = data_page_used(&page)? as usize;
-
-    if used + record_size > PAGE_SIZE {
-        append_empty_data_page(&mut file)?;
-        page_count += 1;
-        page_index = page_count - 1;
-        write_page_count(&mut file, page_count)?;
-        page = empty_data_page();
-        used = DATA_PAGE_HEADER_SIZE;
-    }
-
-    if used + record_size > PAGE_SIZE {
+fn append_record_to_file_with_cursor(
+    path: &Path,
+    page_count: &mut u64,
+    last_page_used: &mut usize,
+    last_page_record_count: &mut u16,
+    payload: &[u8],
+) -> Result<(), StorageError> {
+    if payload.len() > max_record_payload_len() {
         return Err(StorageError::RecordTooLarge);
     }
 
+    let mut file = OpenOptions::new().read(true).write(true).open(path)?;
+
+    if *page_count == 1 {
+        append_empty_data_page(&mut file)?;
+        *page_count = 2;
+        *last_page_used = DATA_PAGE_HEADER_SIZE;
+        *last_page_record_count = 0;
+        write_page_count(&mut file, *page_count)?;
+    }
+
+    let record_size = RECORD_LENGTH_SIZE + payload.len();
+    if *last_page_used + record_size > PAGE_SIZE {
+        append_empty_data_page(&mut file)?;
+        *page_count = page_count.checked_add(1).ok_or(StorageError::Io)?;
+        *last_page_used = DATA_PAGE_HEADER_SIZE;
+        *last_page_record_count = 0;
+        write_page_count(&mut file, *page_count)?;
+    }
+
+    if *last_page_used + record_size > PAGE_SIZE {
+        return Err(StorageError::RecordTooLarge);
+    }
+
+    let page_index = *page_count - 1;
+    let mut page = read_page(&mut file, page_index)?;
+    let used = *last_page_used;
     page[used..used + RECORD_LENGTH_SIZE].copy_from_slice(&(payload.len() as u32).to_le_bytes());
     let payload_start = used + RECORD_LENGTH_SIZE;
     page[payload_start..payload_start + payload.len()].copy_from_slice(payload);
 
-    let new_used = used + record_size;
-    let new_count = data_page_record_count(&page)?
+    *last_page_used += record_size;
+    *last_page_record_count = last_page_record_count
         .checked_add(1)
         .ok_or(StorageError::Io)?;
     page[DATA_PAGE_USED_OFFSET..DATA_PAGE_USED_OFFSET + 2]
-        .copy_from_slice(&(new_used as u16).to_le_bytes());
+        .copy_from_slice(&(*last_page_used as u16).to_le_bytes());
     page[DATA_PAGE_RECORD_COUNT_OFFSET..DATA_PAGE_RECORD_COUNT_OFFSET + 2]
-        .copy_from_slice(&new_count.to_le_bytes());
+        .copy_from_slice(&last_page_record_count.to_le_bytes());
 
     write_page(&mut file, page_index, &page)?;
     file.flush()?;
@@ -300,6 +367,8 @@ fn replay_wal(path: &Path) -> Result<(), StorageError> {
     let mut offset = 0usize;
     let mut truncate_to = None;
     let mut replay_applies = 0u64;
+    let mut current_record_count = total_record_count(path)?;
+    let (mut page_count, mut last_page_used, mut last_page_record_count) = append_cursor(path)?;
     while offset < bytes.len() {
         let remaining = bytes.len() - offset;
         if remaining < WAL_HEADER_LEN {
@@ -341,10 +410,18 @@ fn replay_wal(path: &Path) -> Result<(), StorageError> {
         }
 
         if state == WAL_STATE_COMMITTED && payload_kind == WAL_PAYLOAD_KIND_PAGE_APPEND {
-            let current_record_count = total_record_count(path)?;
             match current_record_count.cmp(&record_count_before) {
                 std::cmp::Ordering::Equal => {
-                    append_record_to_file(path, &frame[WAL_HEADER_LEN..])?;
+                    append_record_to_file_with_cursor(
+                        path,
+                        &mut page_count,
+                        &mut last_page_used,
+                        &mut last_page_record_count,
+                        &frame[WAL_HEADER_LEN..],
+                    )?;
+                    current_record_count = current_record_count
+                        .checked_add(1)
+                        .ok_or(StorageError::Io)?;
                     replay_applies = replay_applies.checked_add(1).ok_or(StorageError::Io)?;
                     maybe_interrupt_after_wal_replay_apply(replay_applies);
                 }
@@ -382,11 +459,11 @@ fn maybe_interrupt_after_wal_replay_apply(replay_applies: u64) {
 
 fn append_wal_frame(
     wal_path: &Path,
+    frame_id: u64,
     record_count_before: u64,
     payload: &[u8],
 ) -> Result<(), StorageError> {
     let payload_len = u32::try_from(payload.len()).map_err(|_| StorageError::RecordTooLarge)?;
-    let frame_id = next_wal_frame_id(wal_path)?;
     let mut frame = Vec::with_capacity(WAL_HEADER_LEN + payload.len());
     frame.extend_from_slice(WAL_MAGIC);
     frame.extend_from_slice(&WAL_VERSION.to_le_bytes());

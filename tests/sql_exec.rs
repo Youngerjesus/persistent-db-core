@@ -465,6 +465,21 @@ fn primary_key_exact_lookup_outputs_matching_row_after_reopen() {
 }
 
 #[test]
+fn integer_alias_primary_key_supports_section14_benchmark_schema() {
+    let path = temp_db_path("integer_alias_primary_key_supports_section14_benchmark_schema");
+
+    assert_exec(
+        &path,
+        "CREATE TABLE bench_items(id INTEGER PRIMARY KEY, group_key INTEGER, payload TEXT); INSERT INTO bench_items VALUES (7, 42, 'payload-7'); SELECT * FROM bench_items WHERE id = 7;",
+        0,
+        "id|group_key|payload\n7|42|payload-7\n",
+        "",
+    );
+
+    cleanup(&path);
+}
+
+#[test]
 fn primary_key_select_all_scans_in_key_order_not_insert_order() {
     let path = temp_db_path("primary_key_select_all_scans_in_key_order_not_insert_order");
 

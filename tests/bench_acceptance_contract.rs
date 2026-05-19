@@ -27,59 +27,127 @@ fn benchmark_acceptance_script_contract_is_pinned() {
         "script must be a strict bash verification entrypoint"
     );
     assert!(
-        script.contains("cargo run --quiet --bin db -- exec"),
-        "benchmark work must run through db exec via cargo run"
+        script.contains("cargo run --bin db -- bench")
+            || script.contains("cargo run --quiet --bin db -- bench"),
+        "benchmark acceptance must invoke the public db bench command"
     );
     assert!(
-        !script.contains(" db bench") && !script.contains("-- bench"),
-        "script must not call the reserved user-facing db bench command"
+        !script.contains("DB_BENCH_LOCK_HELD=1"),
+        "script must not bypass the public db bench lock owner"
+    );
+    assert!(
+        script.contains("tempfile.mkstemp") && script.contains("os.fsync") && script.contains("os.replace"),
+        "script must finalize evidence through a flushed same-directory temp file and atomic rename"
+    );
+    assert!(
+        script.contains("lock_acquired=0")
+            && script.contains("lock_acquired=1")
+            && script.contains("[[ \"$lock_acquired\" != \"1\" ]]"),
+        "script must fail unless it actually owns the verifier lock"
+    );
+    assert!(
+        !script.contains("--bin db -- exec") && !script.contains(" db exec "),
+        "script must not use the obsolete script-only db exec 1k benchmark path"
     );
     for required in [
-        "bench_insert_1k",
-        "bench_reopen_select_1k",
-        "bench_items(id INT, value TEXT)",
-        "value-0001",
-        "value-1000",
-        "target/bench_acceptance/v1-bench-docs-acceptance.json",
-        "evidence-v1-benchmark-lower-bounds",
+        "BENCH_ACCEPTANCE: PASS evidence=target/bench_acceptance/section14-benchmark-acceptance.json",
+        "BENCH_ACCEPTANCE: FAIL check=",
+        "target/bench_acceptance/section14-benchmark-acceptance.json",
+        "DB_BENCH: PASS evidence=target/bench_acceptance/section14-benchmark-acceptance.json",
         "schema_version",
-        "repo_sha",
-        "created_at",
-        "environment",
-        "overall_passed",
-        "observed_min_rows_per_second",
+        "v1-section14-benchmark-acceptance",
+        "row_count",
+        "100000",
+        "primary_key_type",
+        "INTEGER",
+        "secondary_index_column",
+        "group_key",
+        "secondary_index_name",
+        "idx_section14_bench_group_key",
+        "deterministic_seed",
+        "140014",
+        "warmup_runs",
+        "measurement_runs",
+        "runtime_cap_seconds",
+        "equality_index_speedup",
+        "range_index_speedup",
+        "recovery_ms",
+        "wal_replay_applied_records",
+        "wal_file_bytes",
+        "index_use_evidence",
+        "hard_fail_checks",
+        "indexed_equality_no_full_scan",
+        "indexed_range_no_full_scan",
+        "recovery_proportionality",
+        "wal_replay_applied_records",
     ] {
         assert!(script.contains(required), "script missing {required:?}");
     }
 }
 
 #[test]
+fn db_bench_file_boundary_contract_is_pinned() {
+    let bench = read_repo_file("src/bench.rs");
+    assert!(
+        bench.contains("symlink_metadata") && bench.contains("atomic_write_evidence"),
+        "db bench must reject symlink evidence paths and finalize evidence atomically"
+    );
+    assert!(
+        !bench.contains("fs::write(path, evidence)"),
+        "db bench must not write the public evidence artifact through symlink-following fs::write"
+    );
+    assert!(
+        !bench.contains("Command::new(\"kill\")"),
+        "db bench stale-lock detection must not resolve kill through PATH"
+    );
+}
+
+#[test]
 fn benchmark_documentation_contract_is_pinned() {
     let docs = read_repo_file("docs/benchmarks.md");
     for required in [
-        "scripts/verify_bench_acceptance",
-        "target/bench_acceptance/v1-bench-docs-acceptance.json",
-        "bench_items(id INT, value TEXT)",
-        "1,000",
-        "bench_insert_1k",
-        "bench_reopen_select_1k",
-        "insert_rows_per_second >= 25",
-        "select_rows_per_second >= 50",
-        "minimum",
-        "schema_version",
-        "overall_passed",
-        "Current Evidence",
-        "observed minimum",
-        "Environment Assumptions",
-        "OS",
-        "CPU",
-        "toolchain",
-        "not",
+        "Section 14",
         "db bench",
+        "scripts/verify_bench_acceptance",
+        "target/bench_acceptance/section14-benchmark-acceptance.json",
+        "bench_items(id INTEGER PRIMARY KEY, group_key INTEGER, payload TEXT)",
+        "100,000",
+        "idx_section14_bench_group_key",
+        "deterministic_seed=140014",
+        "warmup_runs=1",
+        "measurement_runs=5",
+        "equality_index_speedup = secondary_equality_scan_median_ms / secondary_equality_indexed_median_ms",
+        "range_index_speedup = range_scan_median_ms / range_indexed_median_ms",
+        "equality_index_speedup >= 5.0",
+        "range_index_speedup >= 3.0",
+        "recovery_ms <= max(2000, wal_file_bytes / 4096)",
+        "BENCH_ACCEPTANCE: PASS evidence=target/bench_acceptance/section14-benchmark-acceptance.json",
+        "DB_BENCH: PASS evidence=target/bench_acceptance/section14-benchmark-acceptance.json",
+        "schema_version",
+        "metrics",
+        "recovery",
+        "index_use_evidence",
+        "hard_fail_checks",
+        "METRIC-14-1",
+        "METRIC-14-2",
+        "METRIC-14-3",
+        "METRIC-14-4",
+        "FAIL-14-5",
     ] {
         assert!(
             docs.contains(required),
             "docs/benchmarks.md missing {required:?}"
+        );
+    }
+    for obsolete in [
+        "target/bench_acceptance/v1-bench-docs-acceptance.json",
+        "bench_insert_1k",
+        "bench_reopen_select_1k",
+        "db bench` remains a reserved future CLI command",
+    ] {
+        assert!(
+            !docs.contains(obsolete),
+            "docs/benchmarks.md must not retain obsolete 1k benchmark contract {obsolete:?}"
         );
     }
 }

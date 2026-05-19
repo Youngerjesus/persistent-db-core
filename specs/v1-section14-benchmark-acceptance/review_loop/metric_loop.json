@@ -1,0 +1,479 @@
+{
+  "max_rounds": 3,
+  "max_repair_attempts": 2,
+  "threshold": 2,
+  "rounds": [
+    {
+      "round": 1,
+      "metrics": {
+        "objective_plan_gap_fit": {
+          "score": 3,
+          "rationale": "Candidate maps to both an objective metric and a current-plan gap.",
+          "evidence": [
+            "metric:metric-v1-performance-scalability",
+            "gap:gap-v1-bench-docs-acceptance"
+          ]
+        },
+        "causal_evidence_strength": {
+          "score": 3,
+          "rationale": "Candidate has concrete evidence for the proposed intervention.",
+          "evidence": [
+            "Root Progress Projection에서 `artifact_status`는 `open`이고 `gate-v1-bench-docs-acceptance`는 missing satisfied requirement rows 상태다.",
+            "Root Progress Projection의 open requirement에 `METRIC-14-1`, `METRIC-14-2`, `METRIC-14-3`, `METRIC-14-4`, `FAIL-14-5`, `EVID-15`, `EVID-16-7` rows가 포함되어 있다.",
+            "`ssot/current-plan.md`의 `gap-v1-bench-docs-acceptance`는 benchmark lower bounds와 required V1 docs를 current-plan gap으로 정의한다.",
+            "`ssot/current-artifact.md`는 Section 14 성능 rows에 100000-row dataset, index-vs-scan lower bounds, WAL/recovery metrics, hard-fail rejection review를 요구한다.",
+            "Active managed repo snapshot의 `work_queue/progress.md`는 SQL, recovery, check, differential, benchmark, index baseline 위의 remaining V1 acceptance blocker를 다음 handoff 대상으로 지목한다.",
+            "기존 bench evidence ref는 `target/bench_acceptance/v1-bench-docs-acceptance.json`의 1k insert/reopen lower-bound 중심으로 요약되어 current artifact의 100000-row Section 14 계약과 차이가 있다.",
+            "Queue Snapshot은 비어 있고 managed repo git status는 clean이다.",
+            "src/main.rs",
+            "scripts/verify_bench_acceptance",
+            "tests/bench_acceptance_contract.rs",
+            "tests/cli_contract.rs",
+            "docs/benchmarks.md",
+            "docs/v1_acceptance.md",
+            "docs/v1_spec.md",
+            "docs/cli_contract.md",
+            "specs/v1-bench-docs-acceptance/contracts.md",
+            "specs/v1-bench-docs-acceptance/impl_review.md",
+            "HELP",
+            "benchmark_acceptance_script_contract_is_pinned",
+            "benchmark_documentation_contract_is_pinned",
+            "bench_reserved_future_command_remains_unsupported",
+            "row_count=1000",
+            "bench_insert_1k",
+            "bench_reopen_select_1k",
+            "project_manager/tasks/tasks.json#task-2026-05-18-05-57-03-v1-bench-docs-acceptance",
+            "task-2026-05-18-05-57-03-v1-bench-docs-acceptance: SUCCESS, artifact_requirement_ids=[req-v1-benchmark-lower-bounds, req-v1-acceptance-docs]",
+            "현재 queue에는 candidate-v1-section14-benchmark-acceptance 또는 v1-section14-benchmark-acceptance active/reserved task가 없다",
+            "project_manager/specs/v1-bench-docs-acceptance/spec.md",
+            "project_manager/specs/v1-bench-docs-acceptance/contracts.md",
+            "managed repo specs/v1-bench-docs-acceptance/contracts.md"
+          ]
+        },
+        "handoff_verifiability": {
+          "score": 3,
+          "rationale": "Expected delta and acceptance proof are explicit.",
+          "evidence": [
+            "`db bench` 또는 task-specific verifier가 100000 rows, INTEGER primary key, secondary indexed integer column, 8~64 byte TEXT column dataset shape를 machine-readable output으로 기록한다.",
+            "벤치마크는 sequential inserts, primary-key lookups, secondary equality lookups, indexed range scans, full scan versus indexed scan, 10000 committed transactions 이후 recovery를 포함한다.",
+            "검증은 indexed equality lookup 5x 이상, indexed range scan 3x 이상, eligible indexed query의 full-scan 사용 금지를 hard fail로 판정한다.",
+            "출력 또는 report는 elapsed time, throughput, file size, WAL size, recovery time, index-versus-full-scan latency, index-use evidence를 포함한다.",
+            "`scripts/verify_bench_acceptance`와 baseline `scripts/verify`가 repo root에서 통과하고, verifier는 caller cwd 독립 실행을 확인한다.",
+            "`docs/performance_report.md`, `docs/v1_acceptance.md`, `docs/bug_diary.md`가 targeted artifact requirement IDs, command evidence, hard-fail policy, 발견 bug의 원인·수정·회귀 테스트 상태를 명시한다."
+          ]
+        }
+      },
+      "low_metrics": [],
+      "constraint_blockers": [],
+      "artifact_mapping": {
+        "source": "explicit_candidate",
+        "blocker": "",
+        "blocker_reason": "",
+        "resolved_requirement_ids": [
+          "METRIC-14-1-benchmark-dataset-must-contain-100000-7052d6fb",
+          "METRIC-14-2-benchmark-suite-must-include-sequential-7da5205a",
+          "METRIC-14-3-performance-report-must-include-elapsed-eca58d49",
+          "METRIC-14-4-indexed-equality-lookup-must-be-609f5237",
+          "METRIC-14-4-recovery-must-be-proportional-to-8c0f9dd5",
+          "FAIL-14-5-reject-performance-evidence-where-indexed-0b2ffef1",
+          "FAIL-14-5-reject-every-write-full-file-5bc3a2a9",
+          "EVID-15-require-architecture-storage-format-index-a575878f",
+          "EVID-15-bug-diary-must-record-bug-53b961eb",
+          "EVID-16-7-performance-acceptance-must-run-db-9901b652"
+        ],
+        "resolved_gates": [
+          "gate-v1-bench-docs-acceptance"
+        ],
+        "explicit": {
+          "requirement_ids": [
+            "METRIC-14-1-benchmark-dataset-must-contain-100000-7052d6fb",
+            "METRIC-14-2-benchmark-suite-must-include-sequential-7da5205a",
+            "METRIC-14-3-performance-report-must-include-elapsed-eca58d49",
+            "METRIC-14-4-indexed-equality-lookup-must-be-609f5237",
+            "METRIC-14-4-recovery-must-be-proportional-to-8c0f9dd5",
+            "FAIL-14-5-reject-performance-evidence-where-indexed-0b2ffef1",
+            "FAIL-14-5-reject-every-write-full-file-5bc3a2a9",
+            "EVID-15-require-architecture-storage-format-index-a575878f",
+            "EVID-15-bug-diary-must-record-bug-53b961eb",
+            "EVID-16-7-performance-acceptance-must-run-db-9901b652"
+          ],
+          "launch_gates": [
+            "gate-v1-bench-docs-acceptance"
+          ],
+          "valid_requirement_ids": [
+            "METRIC-14-1-benchmark-dataset-must-contain-100000-7052d6fb",
+            "METRIC-14-2-benchmark-suite-must-include-sequential-7da5205a",
+            "METRIC-14-3-performance-report-must-include-elapsed-eca58d49",
+            "METRIC-14-4-indexed-equality-lookup-must-be-609f5237",
+            "METRIC-14-4-recovery-must-be-proportional-to-8c0f9dd5",
+            "FAIL-14-5-reject-performance-evidence-where-indexed-0b2ffef1",
+            "FAIL-14-5-reject-every-write-full-file-5bc3a2a9",
+            "EVID-15-require-architecture-storage-format-index-a575878f",
+            "EVID-15-bug-diary-must-record-bug-53b961eb",
+            "EVID-16-7-performance-acceptance-must-run-db-9901b652"
+          ],
+          "valid_launch_gates": [
+            "gate-v1-bench-docs-acceptance"
+          ],
+          "unknown_requirement_ids": [],
+          "unknown_launch_gates": [],
+          "resolved_requirement_ids": [
+            "METRIC-14-1-benchmark-dataset-must-contain-100000-7052d6fb",
+            "METRIC-14-2-benchmark-suite-must-include-sequential-7da5205a",
+            "METRIC-14-3-performance-report-must-include-elapsed-eca58d49",
+            "METRIC-14-4-indexed-equality-lookup-must-be-609f5237",
+            "METRIC-14-4-recovery-must-be-proportional-to-8c0f9dd5",
+            "FAIL-14-5-reject-performance-evidence-where-indexed-0b2ffef1",
+            "FAIL-14-5-reject-every-write-full-file-5bc3a2a9",
+            "EVID-15-require-architecture-storage-format-index-a575878f",
+            "EVID-15-bug-diary-must-record-bug-53b961eb",
+            "EVID-16-7-performance-acceptance-must-run-db-9901b652"
+          ],
+          "resolved_gates": [
+            "gate-v1-bench-docs-acceptance"
+          ],
+          "present": true
+        },
+        "inferred": {
+          "current_plan_gap_id": "gap-v1-bench-docs-acceptance",
+          "launch_gates": [
+            "gate-v1-bench-docs-acceptance"
+          ],
+          "requirement_ids": [
+            "METRIC-14-1-benchmark-dataset-must-contain-100000-7052d6fb",
+            "METRIC-14-2-benchmark-suite-must-include-sequential-7da5205a",
+            "METRIC-14-3-performance-report-must-include-elapsed-eca58d49",
+            "METRIC-14-4-indexed-equality-lookup-must-be-609f5237",
+            "METRIC-14-4-recovery-must-be-proportional-to-8c0f9dd5",
+            "FAIL-14-5-reject-performance-evidence-where-indexed-0b2ffef1",
+            "FAIL-14-5-reject-every-write-full-file-5bc3a2a9",
+            "EVID-15-require-architecture-storage-format-index-a575878f",
+            "EVID-15-bug-diary-must-record-bug-53b961eb",
+            "EVID-16-2-persistence-acceptance-must-prove-committed-0cfc3d80",
+            "EVID-16-3-transaction-atomicity-acceptance-must-cover-dce6b35c",
+            "EVID-16-7-performance-acceptance-must-run-db-9901b652",
+            "FAIL-18-automatic-v1-failure-if-implementation-814892ba",
+            "FAIL-18-automatic-v1-failure-if-all-e69ba9f4",
+            "FAIL-18-automatic-v1-failure-if-crash-df0385e6",
+            "FAIL-18-automatic-v1-failure-for-table-30284a6c",
+            "FAIL-18-automatic-v1-failure-for-data-7dee7832",
+            "FAIL-18-automatic-v1-failure-if-tests-4fc9e7e4"
+          ],
+          "valid": true
+        },
+        "artifact_contract": {
+          "requirement_ids": [
+            "EVID-10-db-check-must-validate-page-195c4e72",
+            "EVID-11-crash-tests-must-recover-check-95f2685f",
+            "EVID-12-use-sqlite-as-differential-oracle-e5469b45",
+            "EVID-13-include-seeded-property-tests-for-60ca360c",
+            "EVID-15-bug-diary-must-record-bug-53b961eb",
+            "EVID-15-require-architecture-storage-format-index-a575878f",
+            "EVID-16-1-black-box-cli-smoke-must-bcfdb1ab",
+            "EVID-16-2-persistence-acceptance-must-prove-committed-0cfc3d80",
+            "EVID-16-3-transaction-atomicity-acceptance-must-cover-dce6b35c",
+            "EVID-16-4-crash-recovery-matrix-must-run-c3aeada6",
+            "EVID-16-5-differential-acceptance-must-compare-generated-0177412b",
+            "EVID-16-6-property-acceptance-must-use-reproducible-f7331be6",
+            "EVID-16-7-performance-acceptance-must-run-db-9901b652",
+            "EVID-7-validate-index-invariants-for-uniqueness-2d153f8e",
+            "FAIL-14-5-reject-every-write-full-file-5bc3a2a9",
+            "FAIL-14-5-reject-performance-evidence-where-indexed-0b2ffef1",
+            "FAIL-18-automatic-v1-failure-for-data-7dee7832",
+            "FAIL-18-automatic-v1-failure-for-table-30284a6c",
+            "FAIL-18-automatic-v1-failure-if-all-e69ba9f4",
+            "FAIL-18-automatic-v1-failure-if-crash-df0385e6",
+            "FAIL-18-automatic-v1-failure-if-implementation-814892ba",
+            "FAIL-18-automatic-v1-failure-if-tests-4fc9e7e4",
+            "FAIL-3-1-unsupported-sql-must-fail-with-68a3ee08",
+            "FAIL-3-3-join-group-by-having-aggregation-89789c06",
+            "FAIL-4-reject-null-values-because-null-7cff87ec",
+            "FAIL-5-syntax-errors-and-unsupported-sql-983b9754",
+            "FAIL-6-reject-memory-only-dump-at-fd82a296",
+            "FAIL-6-reject-whole-database-file-rewrite-bebf73bb",
+            "METRIC-14-1-benchmark-dataset-must-contain-100000-7052d6fb",
+            "METRIC-14-2-benchmark-suite-must-include-sequential-7da5205a",
+            "METRIC-14-3-performance-report-must-include-elapsed-eca58d49",
+            "METRIC-14-4-indexed-equality-lookup-must-be-609f5237",
+            "METRIC-14-4-recovery-must-be-proportional-to-8c0f9dd5",
+            "REQ-10-provide-db-init-db-exec-4ba947a9",
+            "REQ-11-run-workloads-in-a-child-1cc228f3",
+            "REQ-3-1-support-create-table-create-index-578fc989",
+            "REQ-3-2-support-equality-comparison-and-between-fcf162bb",
+            "REQ-4-support-signed-64-bit-integer-e64725e8",
+            "REQ-4-support-utf-8-text-values-3f18fad1",
+            "REQ-5-return-clear-db-check-or-c4bdd9af",
+            "REQ-5-return-clear-normal-operation-errors-c2e93c70",
+            "REQ-6-data-must-survive-process-restart-0471a233",
+            "REQ-6-store-data-in-a-disk-ad3ffc4e",
+            "REQ-7-create-index-must-create-disk-3b71a7dc",
+            "REQ-7-implement-integer-primary-key-as-9c698e08",
+            "REQ-7-insert-update-and-delete-must-997871f9",
+            "REQ-8-begin-commit-and-rollback-provide-44e7901f",
+            "REQ-8-committed-writes-survive-crash-and-35caf667",
+            "REQ-9-checkpoint-or-log-truncation-must-d633d286",
+            "REQ-9-provide-wal-or-equivalent-write-80297892",
+            "REQ-9-recovery-must-be-idempotent-and-300531dc"
+          ],
+          "launch_gates": [
+            "gate-v1-bench-docs-acceptance",
+            "gate-v1-cli-smoke",
+            "gate-v1-crash-testing",
+            "gate-v1-db-check-invariants",
+            "gate-v1-differential-property-tests",
+            "gate-v1-disk-page-storage",
+            "gate-v1-indexes",
+            "gate-v1-sql-schema-exec",
+            "gate-v1-transactions-wal-recovery"
+          ]
+        }
+      },
+      "feedback": [],
+      "repair": {
+        "attempted": false,
+        "changed": false,
+        "changes": [],
+        "summary": "No repair needed."
+      }
+    }
+  ],
+  "final_metrics": {
+    "objective_plan_gap_fit": {
+      "score": 3,
+      "rationale": "Candidate maps to both an objective metric and a current-plan gap.",
+      "evidence": [
+        "metric:metric-v1-performance-scalability",
+        "gap:gap-v1-bench-docs-acceptance"
+      ]
+    },
+    "causal_evidence_strength": {
+      "score": 3,
+      "rationale": "Candidate has concrete evidence for the proposed intervention.",
+      "evidence": [
+        "Root Progress Projection에서 `artifact_status`는 `open`이고 `gate-v1-bench-docs-acceptance`는 missing satisfied requirement rows 상태다.",
+        "Root Progress Projection의 open requirement에 `METRIC-14-1`, `METRIC-14-2`, `METRIC-14-3`, `METRIC-14-4`, `FAIL-14-5`, `EVID-15`, `EVID-16-7` rows가 포함되어 있다.",
+        "`ssot/current-plan.md`의 `gap-v1-bench-docs-acceptance`는 benchmark lower bounds와 required V1 docs를 current-plan gap으로 정의한다.",
+        "`ssot/current-artifact.md`는 Section 14 성능 rows에 100000-row dataset, index-vs-scan lower bounds, WAL/recovery metrics, hard-fail rejection review를 요구한다.",
+        "Active managed repo snapshot의 `work_queue/progress.md`는 SQL, recovery, check, differential, benchmark, index baseline 위의 remaining V1 acceptance blocker를 다음 handoff 대상으로 지목한다.",
+        "기존 bench evidence ref는 `target/bench_acceptance/v1-bench-docs-acceptance.json`의 1k insert/reopen lower-bound 중심으로 요약되어 current artifact의 100000-row Section 14 계약과 차이가 있다.",
+        "Queue Snapshot은 비어 있고 managed repo git status는 clean이다.",
+        "src/main.rs",
+        "scripts/verify_bench_acceptance",
+        "tests/bench_acceptance_contract.rs",
+        "tests/cli_contract.rs",
+        "docs/benchmarks.md",
+        "docs/v1_acceptance.md",
+        "docs/v1_spec.md",
+        "docs/cli_contract.md",
+        "specs/v1-bench-docs-acceptance/contracts.md",
+        "specs/v1-bench-docs-acceptance/impl_review.md",
+        "HELP",
+        "benchmark_acceptance_script_contract_is_pinned",
+        "benchmark_documentation_contract_is_pinned",
+        "bench_reserved_future_command_remains_unsupported",
+        "row_count=1000",
+        "bench_insert_1k",
+        "bench_reopen_select_1k",
+        "project_manager/tasks/tasks.json#task-2026-05-18-05-57-03-v1-bench-docs-acceptance",
+        "task-2026-05-18-05-57-03-v1-bench-docs-acceptance: SUCCESS, artifact_requirement_ids=[req-v1-benchmark-lower-bounds, req-v1-acceptance-docs]",
+        "현재 queue에는 candidate-v1-section14-benchmark-acceptance 또는 v1-section14-benchmark-acceptance active/reserved task가 없다",
+        "project_manager/specs/v1-bench-docs-acceptance/spec.md",
+        "project_manager/specs/v1-bench-docs-acceptance/contracts.md",
+        "managed repo specs/v1-bench-docs-acceptance/contracts.md"
+      ]
+    },
+    "handoff_verifiability": {
+      "score": 3,
+      "rationale": "Expected delta and acceptance proof are explicit.",
+      "evidence": [
+        "`db bench` 또는 task-specific verifier가 100000 rows, INTEGER primary key, secondary indexed integer column, 8~64 byte TEXT column dataset shape를 machine-readable output으로 기록한다.",
+        "벤치마크는 sequential inserts, primary-key lookups, secondary equality lookups, indexed range scans, full scan versus indexed scan, 10000 committed transactions 이후 recovery를 포함한다.",
+        "검증은 indexed equality lookup 5x 이상, indexed range scan 3x 이상, eligible indexed query의 full-scan 사용 금지를 hard fail로 판정한다.",
+        "출력 또는 report는 elapsed time, throughput, file size, WAL size, recovery time, index-versus-full-scan latency, index-use evidence를 포함한다.",
+        "`scripts/verify_bench_acceptance`와 baseline `scripts/verify`가 repo root에서 통과하고, verifier는 caller cwd 독립 실행을 확인한다.",
+        "`docs/performance_report.md`, `docs/v1_acceptance.md`, `docs/bug_diary.md`가 targeted artifact requirement IDs, command evidence, hard-fail policy, 발견 bug의 원인·수정·회귀 테스트 상태를 명시한다."
+      ]
+    }
+  },
+  "low_metrics": [],
+  "constraint_blockers": [],
+  "artifact_mapping": {
+    "source": "explicit_candidate",
+    "blocker": "",
+    "blocker_reason": "",
+    "resolved_requirement_ids": [
+      "METRIC-14-1-benchmark-dataset-must-contain-100000-7052d6fb",
+      "METRIC-14-2-benchmark-suite-must-include-sequential-7da5205a",
+      "METRIC-14-3-performance-report-must-include-elapsed-eca58d49",
+      "METRIC-14-4-indexed-equality-lookup-must-be-609f5237",
+      "METRIC-14-4-recovery-must-be-proportional-to-8c0f9dd5",
+      "FAIL-14-5-reject-performance-evidence-where-indexed-0b2ffef1",
+      "FAIL-14-5-reject-every-write-full-file-5bc3a2a9",
+      "EVID-15-require-architecture-storage-format-index-a575878f",
+      "EVID-15-bug-diary-must-record-bug-53b961eb",
+      "EVID-16-7-performance-acceptance-must-run-db-9901b652"
+    ],
+    "resolved_gates": [
+      "gate-v1-bench-docs-acceptance"
+    ],
+    "explicit": {
+      "requirement_ids": [
+        "METRIC-14-1-benchmark-dataset-must-contain-100000-7052d6fb",
+        "METRIC-14-2-benchmark-suite-must-include-sequential-7da5205a",
+        "METRIC-14-3-performance-report-must-include-elapsed-eca58d49",
+        "METRIC-14-4-indexed-equality-lookup-must-be-609f5237",
+        "METRIC-14-4-recovery-must-be-proportional-to-8c0f9dd5",
+        "FAIL-14-5-reject-performance-evidence-where-indexed-0b2ffef1",
+        "FAIL-14-5-reject-every-write-full-file-5bc3a2a9",
+        "EVID-15-require-architecture-storage-format-index-a575878f",
+        "EVID-15-bug-diary-must-record-bug-53b961eb",
+        "EVID-16-7-performance-acceptance-must-run-db-9901b652"
+      ],
+      "launch_gates": [
+        "gate-v1-bench-docs-acceptance"
+      ],
+      "valid_requirement_ids": [
+        "METRIC-14-1-benchmark-dataset-must-contain-100000-7052d6fb",
+        "METRIC-14-2-benchmark-suite-must-include-sequential-7da5205a",
+        "METRIC-14-3-performance-report-must-include-elapsed-eca58d49",
+        "METRIC-14-4-indexed-equality-lookup-must-be-609f5237",
+        "METRIC-14-4-recovery-must-be-proportional-to-8c0f9dd5",
+        "FAIL-14-5-reject-performance-evidence-where-indexed-0b2ffef1",
+        "FAIL-14-5-reject-every-write-full-file-5bc3a2a9",
+        "EVID-15-require-architecture-storage-format-index-a575878f",
+        "EVID-15-bug-diary-must-record-bug-53b961eb",
+        "EVID-16-7-performance-acceptance-must-run-db-9901b652"
+      ],
+      "valid_launch_gates": [
+        "gate-v1-bench-docs-acceptance"
+      ],
+      "unknown_requirement_ids": [],
+      "unknown_launch_gates": [],
+      "resolved_requirement_ids": [
+        "METRIC-14-1-benchmark-dataset-must-contain-100000-7052d6fb",
+        "METRIC-14-2-benchmark-suite-must-include-sequential-7da5205a",
+        "METRIC-14-3-performance-report-must-include-elapsed-eca58d49",
+        "METRIC-14-4-indexed-equality-lookup-must-be-609f5237",
+        "METRIC-14-4-recovery-must-be-proportional-to-8c0f9dd5",
+        "FAIL-14-5-reject-performance-evidence-where-indexed-0b2ffef1",
+        "FAIL-14-5-reject-every-write-full-file-5bc3a2a9",
+        "EVID-15-require-architecture-storage-format-index-a575878f",
+        "EVID-15-bug-diary-must-record-bug-53b961eb",
+        "EVID-16-7-performance-acceptance-must-run-db-9901b652"
+      ],
+      "resolved_gates": [
+        "gate-v1-bench-docs-acceptance"
+      ],
+      "present": true
+    },
+    "inferred": {
+      "current_plan_gap_id": "gap-v1-bench-docs-acceptance",
+      "launch_gates": [
+        "gate-v1-bench-docs-acceptance"
+      ],
+      "requirement_ids": [
+        "METRIC-14-1-benchmark-dataset-must-contain-100000-7052d6fb",
+        "METRIC-14-2-benchmark-suite-must-include-sequential-7da5205a",
+        "METRIC-14-3-performance-report-must-include-elapsed-eca58d49",
+        "METRIC-14-4-indexed-equality-lookup-must-be-609f5237",
+        "METRIC-14-4-recovery-must-be-proportional-to-8c0f9dd5",
+        "FAIL-14-5-reject-performance-evidence-where-indexed-0b2ffef1",
+        "FAIL-14-5-reject-every-write-full-file-5bc3a2a9",
+        "EVID-15-require-architecture-storage-format-index-a575878f",
+        "EVID-15-bug-diary-must-record-bug-53b961eb",
+        "EVID-16-2-persistence-acceptance-must-prove-committed-0cfc3d80",
+        "EVID-16-3-transaction-atomicity-acceptance-must-cover-dce6b35c",
+        "EVID-16-7-performance-acceptance-must-run-db-9901b652",
+        "FAIL-18-automatic-v1-failure-if-implementation-814892ba",
+        "FAIL-18-automatic-v1-failure-if-all-e69ba9f4",
+        "FAIL-18-automatic-v1-failure-if-crash-df0385e6",
+        "FAIL-18-automatic-v1-failure-for-table-30284a6c",
+        "FAIL-18-automatic-v1-failure-for-data-7dee7832",
+        "FAIL-18-automatic-v1-failure-if-tests-4fc9e7e4"
+      ],
+      "valid": true
+    },
+    "artifact_contract": {
+      "requirement_ids": [
+        "EVID-10-db-check-must-validate-page-195c4e72",
+        "EVID-11-crash-tests-must-recover-check-95f2685f",
+        "EVID-12-use-sqlite-as-differential-oracle-e5469b45",
+        "EVID-13-include-seeded-property-tests-for-60ca360c",
+        "EVID-15-bug-diary-must-record-bug-53b961eb",
+        "EVID-15-require-architecture-storage-format-index-a575878f",
+        "EVID-16-1-black-box-cli-smoke-must-bcfdb1ab",
+        "EVID-16-2-persistence-acceptance-must-prove-committed-0cfc3d80",
+        "EVID-16-3-transaction-atomicity-acceptance-must-cover-dce6b35c",
+        "EVID-16-4-crash-recovery-matrix-must-run-c3aeada6",
+        "EVID-16-5-differential-acceptance-must-compare-generated-0177412b",
+        "EVID-16-6-property-acceptance-must-use-reproducible-f7331be6",
+        "EVID-16-7-performance-acceptance-must-run-db-9901b652",
+        "EVID-7-validate-index-invariants-for-uniqueness-2d153f8e",
+        "FAIL-14-5-reject-every-write-full-file-5bc3a2a9",
+        "FAIL-14-5-reject-performance-evidence-where-indexed-0b2ffef1",
+        "FAIL-18-automatic-v1-failure-for-data-7dee7832",
+        "FAIL-18-automatic-v1-failure-for-table-30284a6c",
+        "FAIL-18-automatic-v1-failure-if-all-e69ba9f4",
+        "FAIL-18-automatic-v1-failure-if-crash-df0385e6",
+        "FAIL-18-automatic-v1-failure-if-implementation-814892ba",
+        "FAIL-18-automatic-v1-failure-if-tests-4fc9e7e4",
+        "FAIL-3-1-unsupported-sql-must-fail-with-68a3ee08",
+        "FAIL-3-3-join-group-by-having-aggregation-89789c06",
+        "FAIL-4-reject-null-values-because-null-7cff87ec",
+        "FAIL-5-syntax-errors-and-unsupported-sql-983b9754",
+        "FAIL-6-reject-memory-only-dump-at-fd82a296",
+        "FAIL-6-reject-whole-database-file-rewrite-bebf73bb",
+        "METRIC-14-1-benchmark-dataset-must-contain-100000-7052d6fb",
+        "METRIC-14-2-benchmark-suite-must-include-sequential-7da5205a",
+        "METRIC-14-3-performance-report-must-include-elapsed-eca58d49",
+        "METRIC-14-4-indexed-equality-lookup-must-be-609f5237",
+        "METRIC-14-4-recovery-must-be-proportional-to-8c0f9dd5",
+        "REQ-10-provide-db-init-db-exec-4ba947a9",
+        "REQ-11-run-workloads-in-a-child-1cc228f3",
+        "REQ-3-1-support-create-table-create-index-578fc989",
+        "REQ-3-2-support-equality-comparison-and-between-fcf162bb",
+        "REQ-4-support-signed-64-bit-integer-e64725e8",
+        "REQ-4-support-utf-8-text-values-3f18fad1",
+        "REQ-5-return-clear-db-check-or-c4bdd9af",
+        "REQ-5-return-clear-normal-operation-errors-c2e93c70",
+        "REQ-6-data-must-survive-process-restart-0471a233",
+        "REQ-6-store-data-in-a-disk-ad3ffc4e",
+        "REQ-7-create-index-must-create-disk-3b71a7dc",
+        "REQ-7-implement-integer-primary-key-as-9c698e08",
+        "REQ-7-insert-update-and-delete-must-997871f9",
+        "REQ-8-begin-commit-and-rollback-provide-44e7901f",
+        "REQ-8-committed-writes-survive-crash-and-35caf667",
+        "REQ-9-checkpoint-or-log-truncation-must-d633d286",
+        "REQ-9-provide-wal-or-equivalent-write-80297892",
+        "REQ-9-recovery-must-be-idempotent-and-300531dc"
+      ],
+      "launch_gates": [
+        "gate-v1-bench-docs-acceptance",
+        "gate-v1-cli-smoke",
+        "gate-v1-crash-testing",
+        "gate-v1-db-check-invariants",
+        "gate-v1-differential-property-tests",
+        "gate-v1-disk-page-storage",
+        "gate-v1-indexes",
+        "gate-v1-sql-schema-exec",
+        "gate-v1-transactions-wal-recovery"
+      ]
+    }
+  },
+  "repair_attempts": 0,
+  "final_disposition": "ready_for_handoff",
+  "evidence_gap_type": "",
+  "confidence_gap_reason": "",
+  "research_question": "",
+  "hypothesis_lineage": {
+    "objective_metric_id": "metric-v1-performance-scalability",
+    "current_plan_gap_id": "gap-v1-bench-docs-acceptance",
+    "target_boundary": "managed_repo"
+  },
+  "repairability": {
+    "repairable": false,
+    "reason": "already_ready",
+    "allowed_findings": [],
+    "blocked_findings": []
+  }
+}

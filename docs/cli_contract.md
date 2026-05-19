@@ -13,6 +13,7 @@ db --help
 db help
 db exec <path> <sql>
 db check <path>
+db bench
 ```
 
 `db --help` and `db help` exit with code `0`, write no stderr, and write
@@ -26,6 +27,10 @@ shell input, and multiple SQL argv fragments are not supported.
 repairing or mutating them. The file must already exist and must be a regular
 file.
 
+`db bench` runs the fixed Section 14 benchmark acceptance workload and writes
+machine-readable evidence to
+`target/bench_acceptance/section14-benchmark-acceptance.json`.
+
 ## Help Stdout
 
 The help output must contain these core lines in this order:
@@ -37,13 +42,14 @@ Usage:
   db help
   db exec <path> <sql>
   db check <path>
+  db bench
 Supported commands:
   help        Print this help text.
   exec <path> <sql>
   check <path>
+  bench       Run the fixed Section 14 benchmark acceptance workload.
 Reserved future commands:
   open <path>
-  bench <path>
 V1 scope:
   This build supports the CLI contract, page storage, and the documented minimal SQL subset.
 Non-goals:
@@ -53,7 +59,8 @@ Non-goals:
 ## Exit Codes
 
 - `0`: help printed successfully, `db exec` completed successfully, or
-  `db check` passed.
+  `db check` passed. `db bench` also exits `0` after generating passing
+  Section 14 evidence.
 - `1`: storage, SQL logical-record data, or `db check` invariants are invalid
   for this contract. `db check` open/read failures also use exit code `1`.
 - `2`: the first argument was unsupported, or no supported command was provided.
@@ -70,13 +77,18 @@ hint: run 'db --help' for the supported V1 CLI contract.
 
 `<token>` is the first unsupported token supplied by the user. For example, `db --unknown` reports `--unknown`, `db open demo.db` reports `open`, and `db exec demo.db` reports `exec`.
 
+`db bench <extra>` is unsupported and reports `bench`.
+
 ## SQL Execution
 
 Successful `db exec` writes no stderr. It writes stdout only for supported
 `SELECT *` statements. Each result set prints the stored column header followed
 by rows, with `|` as the field delimiter and `\n` after every output line.
 Tables without a primary key scan in successful `INSERT` append order. Tables
-declared with one `INT PRIMARY KEY` scan in ascending primary-key order.
+declared with one `INT PRIMARY KEY` or `INTEGER PRIMARY KEY` scan in ascending
+primary-key order. `INTEGER` is an accepted spelling alias for the existing
+integer column type; it does not add SQL affinity behavior or any other type
+alias.
 `SELECT * FROM <table> WHERE <primary_key> = <int>;` performs exact primary-key
 lookup and prints only the matching row, or only the header when the key is
 missing. Multiple `SELECT` statements repeat the header with no blank line,
@@ -265,10 +277,56 @@ The following names are reserved for later V1 work but are not executable in thi
 
 ```text
 open <path>
-bench <path>
 ```
 
 Invoking any reserved command currently follows the unsupported input behavior.
+
+## Benchmark Acceptance
+
+Successful `db bench` exits `0`, writes no stderr, creates
+`target/bench_acceptance/section14-benchmark-acceptance.json`, and writes
+exactly:
+
+```text
+DB_BENCH: PASS evidence=target/bench_acceptance/section14-benchmark-acceptance.json
+```
+
+The trailing newline is part of the contract. Failed benchmark evidence exits
+non-zero and writes this stdout shape:
+
+```text
+DB_BENCH: FAIL check=<check_id> reason=<reason>
+```
+
+The companion verifier `scripts/verify_bench_acceptance` must invoke public
+`db bench`, validate the same evidence file, finalize
+`commands.verify_bench_acceptance.status="pass"` and `result="pass"`, then
+write:
+
+```text
+BENCH_ACCEPTANCE: PASS evidence=target/bench_acceptance/section14-benchmark-acceptance.json
+```
+
+Verifier failures use:
+
+```text
+BENCH_ACCEPTANCE: FAIL check=<check_id> reason=<reason>
+```
+
+The evidence covers Section 14 requirement IDs `METRIC-14-1`, `METRIC-14-2`,
+`METRIC-14-3`, `METRIC-14-4`, `FAIL-14-5`, `EVID-15`, and `EVID-16-7`.
+Threshold formulas are:
+
+```text
+equality_index_speedup = secondary_equality_scan_median_ms / secondary_equality_indexed_median_ms
+range_index_speedup = range_scan_median_ms / range_indexed_median_ms
+```
+
+Hard-fail policy rejects missing required fields, non-positive required numeric
+metrics, `equality_index_speedup < 5.0`, `range_index_speedup < 3.0`, eligible
+indexed equality/range measurements that observe full scans, retry-required
+evidence, and recovery evidence violating
+`recovery_ms <= max(2000, wal_file_bytes / 4096)`.
 
 ## Non-Goals
 

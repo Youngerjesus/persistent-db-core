@@ -3,6 +3,7 @@ use crate::storage::{self, PageStore, StorageError};
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::Path;
+use std::time::Instant;
 
 const SQL_RECORD_PREFIX: &[u8; 8] = b"PDBSQL1\0";
 const CATALOG_RECORD: u8 = b'C';
@@ -549,6 +550,210 @@ pub fn plan_query_path_for_test(path: impl AsRef<Path>, sql: &str) -> Result<Que
         return Err(SqlError::Malformed(sql.trim().to_string()));
     }
     plan_query_path(&database, &statements[0])
+}
+
+pub fn plan_selects_for_bench(
+    path: impl AsRef<Path>,
+    sql_texts: &[String],
+) -> Result<Vec<QueryPath>, SqlError> {
+    let path = path.as_ref();
+    initialize_empty_sql_file(path)?;
+    validate_replayable_records_before_open(path)?;
+    let mut store = PageStore::open(path)?;
+    let database = Database::from_records(store.read_records()?)?;
+    let mut paths = Vec::with_capacity(sql_texts.len());
+
+    for sql_text in sql_texts {
+        let statements = parse_statements(sql_text)?;
+        if statements.len() != 1 {
+            return Err(SqlError::Malformed(sql_text.trim().to_string()));
+        }
+        paths.push(plan_query_path(&database, &statements[0])?);
+    }
+
+    Ok(paths)
+}
+
+pub fn execute_selects_for_bench(
+    path: impl AsRef<Path>,
+    sql_texts: &[String],
+) -> Result<Vec<String>, SqlError> {
+    execute_select_batches_for_bench(path, &[sql_texts.to_vec()]).map(|mut batches| {
+        let (_, outputs) = batches.remove(0);
+        outputs
+    })
+}
+
+pub fn execute_select_batches_for_bench(
+    path: impl AsRef<Path>,
+    batches: &[Vec<String>],
+) -> Result<Vec<(f64, Vec<String>)>, SqlError> {
+    let path = path.as_ref();
+    initialize_empty_sql_file(path)?;
+    validate_replayable_records_before_open(path)?;
+    let mut store = PageStore::open(path)?;
+    let database = Database::from_records(store.read_records()?)?;
+    let parsed_batches = batches
+        .iter()
+        .map(|batch| {
+            batch
+                .iter()
+                .map(|sql_text| {
+                    let statements = parse_statements(sql_text)?;
+                    if statements.len() != 1 {
+                        return Err(SqlError::Malformed(sql_text.trim().to_string()));
+                    }
+                    Ok(statements[0].clone())
+                })
+                .collect::<Result<Vec<_>, _>>()
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let mut measured_batches = Vec::with_capacity(batches.len());
+
+    for batch in parsed_batches {
+        let start = Instant::now();
+        let mut outputs = Vec::with_capacity(batch.len());
+        for statement in batch {
+            let mut stdout = String::new();
+            match statement {
+                Statement::SelectAll { table } => {
+                    execute_select(&database, &table, &mut stdout)?;
+                }
+                Statement::SelectWhere {
+                    table,
+                    column,
+                    predicate,
+                    raw,
+                } => {
+                    execute_select_where(&database, &table, &column, predicate, &raw, &mut stdout)?;
+                }
+                _ => return Err(SqlError::Unsupported(String::new())),
+            }
+            outputs.push(stdout);
+        }
+        measured_batches.push((
+            start.elapsed().as_secs_f64().max(0.000_001) * 1000.0,
+            outputs,
+        ));
+    }
+
+    Ok(measured_batches)
+}
+
+pub fn create_section14_fixture_for_bench(
+    path: impl AsRef<Path>,
+    rows: &[(i64, i64, String)],
+    index_name: &str,
+) -> Result<(), SqlError> {
+    initialize_empty_sql_file(path.as_ref())?;
+    let mut store = PageStore::open(path)?;
+    let columns = vec![
+        Column {
+            name: "id".to_string(),
+            column_type: ColumnType::Int,
+            is_primary_key: true,
+        },
+        Column {
+            name: "group_key".to_string(),
+            column_type: ColumnType::Int,
+            is_primary_key: false,
+        },
+        Column {
+            name: "payload".to_string(),
+            column_type: ColumnType::Text,
+            is_primary_key: false,
+        },
+    ];
+    store.append_record(&encode_catalog_record("bench_items", &columns))?;
+    let state = SecondaryIndexState {
+        build_id: 1,
+        name: index_name.to_string(),
+        indexed_column: 1,
+        tie_break_mode: TieBreakMode::PrimaryKey,
+        index: SecondaryIndex::new(),
+    };
+    store.append_record(&encode_secondary_metadata_record(&state, "bench_items"))?;
+
+    for (row_position, (id, group_key, payload)) in rows.iter().enumerate() {
+        let values = vec![
+            Value::Int(*id),
+            Value::Int(*group_key),
+            Value::Text(payload.clone()),
+        ];
+        let entry = EmbeddedIndexEntry {
+            build_id: 1,
+            index_name_key: normalize_identifier(index_name),
+            index_name: index_name.to_string(),
+            indexed_key: *group_key,
+            tie_break: *id,
+            row_position: row_position as u64,
+        };
+        store.append_record(&encode_indexed_row_record("bench_items", &values, &[entry]))?;
+    }
+
+    Ok(())
+}
+
+pub fn create_section14_wal_recovery_fixture_for_bench(
+    path: impl AsRef<Path>,
+    rows: &[(i64, i64, String)],
+    index_name: &str,
+) -> Result<(), SqlError> {
+    let path = path.as_ref();
+    initialize_empty_sql_file(path)?;
+    let mut store = PageStore::open(path)?;
+    let columns = vec![
+        Column {
+            name: "id".to_string(),
+            column_type: ColumnType::Int,
+            is_primary_key: true,
+        },
+        Column {
+            name: "group_key".to_string(),
+            column_type: ColumnType::Int,
+            is_primary_key: false,
+        },
+        Column {
+            name: "payload".to_string(),
+            column_type: ColumnType::Text,
+            is_primary_key: false,
+        },
+    ];
+    store.append_record(&encode_catalog_record("bench_items", &columns))?;
+    let state = SecondaryIndexState {
+        build_id: 1,
+        name: index_name.to_string(),
+        indexed_column: 1,
+        tie_break_mode: TieBreakMode::PrimaryKey,
+        index: SecondaryIndex::new(),
+    };
+    store.append_record(&encode_secondary_metadata_record(&state, "bench_items"))?;
+    drop(store);
+
+    let mut record_count_before = 2u64;
+    for (row_position, (id, group_key, payload)) in rows.iter().enumerate() {
+        let values = vec![
+            Value::Int(*id),
+            Value::Int(*group_key),
+            Value::Text(payload.clone()),
+        ];
+        let entry = EmbeddedIndexEntry {
+            build_id: 1,
+            index_name_key: normalize_identifier(index_name),
+            index_name: index_name.to_string(),
+            indexed_key: *group_key,
+            tie_break: *id,
+            row_position: row_position as u64,
+        };
+        storage::append_committed_wal_record_for_bench(
+            path,
+            record_count_before,
+            &encode_indexed_row_record("bench_items", &values, &[entry]),
+        )?;
+        record_count_before += 1;
+    }
+
+    Ok(())
 }
 
 fn plan_query_path(database: &Database, statement: &Statement) -> Result<QueryPath, SqlError> {
@@ -1462,7 +1667,9 @@ fn parse_create_table(body: &str) -> Result<Statement, ()> {
         let mut column_parser = Parser::new(item);
         let name = column_parser.consume_identifier()?;
         column_parser.require_space()?;
-        let column_type = if column_parser.consume_keyword("INT").is_ok() {
+        let column_type = if column_parser.consume_keyword("INTEGER").is_ok()
+            || column_parser.consume_keyword("INT").is_ok()
+        {
             ColumnType::Int
         } else if column_parser.consume_keyword("TEXT").is_ok() {
             ColumnType::Text

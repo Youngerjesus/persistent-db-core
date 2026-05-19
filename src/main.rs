@@ -1,6 +1,7 @@
 use std::env;
 use std::process;
 
+use persistent_db_core::bench;
 use persistent_db_core::check::{self, CheckError};
 use persistent_db_core::sql::{self, SqlError};
 
@@ -11,13 +12,14 @@ Usage:
   db help
   db exec <path> <sql>
   db check <path>
+  db bench
 Supported commands:
   help        Print this help text.
   exec <path> <sql>
   check <path>
+  bench       Run the fixed Section 14 benchmark acceptance workload.
 Reserved future commands:
   open <path>
-  bench <path>
 V1 scope:
   This build supports the CLI contract, page storage, and the documented minimal SQL subset.
 Non-goals:
@@ -42,6 +44,19 @@ fn main() {
                 print!("{}", check::SUCCESS_OUTPUT);
             }
             Err(error) => exit_with_check_error(error),
+        },
+        [command] if command == "bench" => match bench::run_section14_benchmark() {
+            Ok(()) => {
+                println!("{}", bench::DB_BENCH_PASS_SENTINEL);
+            }
+            Err(error) => {
+                println!(
+                    "DB_BENCH: FAIL check={} reason={}",
+                    error.check_id(),
+                    error.reason()
+                );
+                process::exit(1);
+            }
         },
         [token, ..] => {
             eprintln!("error: unsupported argument or command: {token}");
