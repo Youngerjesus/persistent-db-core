@@ -11,6 +11,8 @@ CREATE TABLE <table_name> (<column_name> INT|TEXT[, <column_name> INT|TEXT]*);
 CREATE TABLE <table_name> (<column_name> INT PRIMARY KEY[, <column_name> INT|TEXT]*);
 CREATE INDEX <index_name> ON <table_name>(<integer_column>);
 INSERT INTO <table_name> VALUES (<value>[, <value>]*);
+UPDATE <table_name> SET <non_primary_key_column> = <value> WHERE <primary_key_column> = <int_value>;
+DELETE FROM <table_name> WHERE <primary_key_column> = <int_value>;
 SELECT * FROM <table_name>;
 SELECT * FROM <table_name> WHERE <primary_key_column> = <int_value>;
 SELECT * FROM <table_name> WHERE <indexed_int_column> = <int_value>;
@@ -30,8 +32,9 @@ indexes are explicit and support only `INT` columns. `TEXT PRIMARY KEY`,
 multiple primary-key columns, non-indexed non-primary-key predicates, range
 predicates before `CREATE INDEX`, and non-integer predicate values are rejected.
 
-Projection, general `WHERE`, `ORDER BY`, `JOIN`, `UPDATE`, `DELETE`, defaults,
-`NULL`, quoted identifiers, and transactions are out of scope.
+Projection, general `WHERE`, `ORDER BY`, `JOIN`, non-primary-key-targeted
+mutations, primary-key updates, defaults, `NULL`, quoted identifiers, and
+transactions are out of scope.
 
 ## Output
 
@@ -49,6 +52,13 @@ range path.
 Fields are delimited with `|`, and each output line ends with `\n`. Empty tables
 print only the header. Multiple `SELECT` statements repeat headers without blank
 lines, separators, or count lines.
+
+`UPDATE` and `DELETE` are mutation statements and write no stdout on success.
+They require an equality predicate on the table's `INT PRIMARY KEY` column.
+`UPDATE` may set one existing non-primary-key column to a value matching that
+column's declared type. `DELETE` makes the matching row invisible to table
+scans, primary-key lookup, and secondary-index equality/range scans. Missing
+primary-key targets are successful no-ops.
 
 If any statement in a command fails, command stdout is empty even if an earlier
 statement produced a result set. This task does not provide command-level
@@ -158,6 +168,8 @@ R  row record
 E  secondary-index backfill entry record
 X  committed secondary-index metadata record
 I  atomic indexed row record
+U  update existing row slot record
+D  delete existing row slot record
 ```
 
 Catalog payload body:
@@ -240,6 +252,39 @@ repeat embedded_entry_count:
   u64 row_position little-endian
 ```
 
+Update existing row slot payload body:
+
+```text
+PDBSQL1\0
+U
+u64 row_position little-endian
+u16 table_name_len little-endian
+table_name UTF-8 bytes
+u16 value_count little-endian
+repeat value_count:
+  u8 type tag: I for INT, T for TEXT
+  u32 value_len little-endian
+  value UTF-8 bytes
+u16 embedded_entry_count little-endian
+repeat embedded_entry_count:
+  u64 index_build_id little-endian
+  u16 index_name_len little-endian
+  index_name UTF-8 bytes
+  i64 indexed_key little-endian
+  i64 tie_break little-endian
+  u64 row_position little-endian
+```
+
+Delete existing row slot payload body:
+
+```text
+PDBSQL1\0
+D
+u16 table_name_len little-endian
+table_name UTF-8 bytes
+u64 row_position little-endian
+```
+
 For row values, `INT` payload bytes are the canonical decimal UTF-8 rendering
 of the parsed signed 64-bit integer. For example, SQL literal `-0` is stored and
 read back as `0`. `TEXT` payload bytes are the literal text bytes inside the
@@ -268,3 +313,6 @@ the final `X` commit marker; orphan `E` records without matching committed
 metadata are ignored and can be retried with a fresh build id. After a table has
 committed secondary indexes, inserts use a single `I` record containing the row
 and all required embedded index entries, not `R` plus standalone `E`.
+Updates use one `U` record and keep the row slot stable. Deletes use one `D`
+record and tombstone the existing row slot. On replay, primary and secondary
+indexes are rebuilt only for visible row slots.

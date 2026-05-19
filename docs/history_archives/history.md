@@ -23,3 +23,4 @@
 ## 2026-05-19
 
 - Added the secondary-index milestone: `CREATE INDEX` now persists `INT` secondary indexes, uses indexed equality and inclusive bounded range paths with deterministic ordering, survives reopen/WAL replay, and is covered by `db check` invariant validation.
+- Added the secondary-index mutation milestone: primary-key-targeted `UPDATE` and `DELETE` now keep table rows, primary indexes, and secondary indexes consistent across restart, retained WAL replay, WAL-only replay, and `db check` invariant validation.

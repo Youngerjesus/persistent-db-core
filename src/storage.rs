@@ -123,18 +123,26 @@ pub fn validate_wal_for_check(
     path: impl AsRef<Path>,
     durable_record_count: u64,
 ) -> Result<(), StorageError> {
+    read_committed_wal_records_for_check(path, durable_record_count).map(|_| ())
+}
+
+pub fn read_committed_wal_records_for_check(
+    path: impl AsRef<Path>,
+    durable_record_count: u64,
+) -> Result<Vec<Vec<u8>>, StorageError> {
     let wal_path = wal_path(path.as_ref());
     if !wal_path.exists() {
-        return Ok(());
+        return Ok(Vec::new());
     }
 
     let bytes = std::fs::read(&wal_path)?;
     let mut offset = 0usize;
     let mut virtual_record_count = durable_record_count;
+    let mut committed_records = Vec::new();
     while offset < bytes.len() {
         let remaining = bytes.len() - offset;
         if remaining < WAL_HEADER_LEN {
-            return Ok(());
+            return Ok(committed_records);
         }
 
         let header = &bytes[offset..offset + WAL_HEADER_LEN];
@@ -159,7 +167,7 @@ pub fn validate_wal_for_check(
             .checked_add(payload_len)
             .ok_or(StorageError::CorruptRecordLength)?;
         if remaining < frame_len {
-            return Ok(());
+            return Ok(committed_records);
         }
 
         let frame = &bytes[offset..offset + frame_len];
@@ -172,7 +180,9 @@ pub fn validate_wal_for_check(
         if state == WAL_STATE_COMMITTED && payload_kind == WAL_PAYLOAD_KIND_PAGE_APPEND {
             match virtual_record_count.cmp(&record_count_before) {
                 std::cmp::Ordering::Equal => {
-                    validate_wal_page_append_payload(&frame[WAL_HEADER_LEN..])?;
+                    let payload = &frame[WAL_HEADER_LEN..];
+                    validate_wal_page_append_payload(payload)?;
+                    committed_records.push(payload.to_vec());
                     virtual_record_count = virtual_record_count
                         .checked_add(1)
                         .ok_or(StorageError::Io)?;
@@ -187,7 +197,7 @@ pub fn validate_wal_for_check(
         offset += frame_len;
     }
 
-    Ok(())
+    Ok(committed_records)
 }
 
 fn validate_wal_page_append_payload(payload: &[u8]) -> Result<(), StorageError> {

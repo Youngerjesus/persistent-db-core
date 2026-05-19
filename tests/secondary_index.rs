@@ -144,6 +144,28 @@ fn assert_check_secondary_index_failure(path: &Path) {
     assert_eq!("error: db check failed: secondary index\n", stderr(&output));
 }
 
+fn assert_invalid_sql_storage_failure(output: &Output) {
+    assert_eq!(
+        Some(1),
+        output.status.code(),
+        "expected invalid SQL storage failure; stdout={:?}; stderr={:?}",
+        stdout(output),
+        stderr(output)
+    );
+    assert_eq!("", stdout(output));
+    assert_eq!(INVALID_SQL_STORAGE_STDERR, stderr(output));
+}
+
+fn setup_mutation_contract_fixture(path: &Path) {
+    assert_exec(
+        path,
+        "CREATE TABLE users (id INT PRIMARY KEY, age INT, name TEXT); INSERT INTO users VALUES (1, 10, 'ada'); INSERT INTO users VALUES (2, 20, 'bea'); INSERT INTO users VALUES (3, 20, 'cal'); INSERT INTO users VALUES (4, 30, 'dia'); CREATE INDEX idx_users_age ON users(age);",
+        0,
+        "",
+        "",
+    );
+}
+
 fn append_fixture_record(path: &Path, payload: &[u8]) {
     let mut store = PageStore::open(path).expect("fixture database should open");
     store
@@ -416,6 +438,43 @@ fn indexed_row_record(
     record
 }
 
+fn update_row_record(
+    table: &str,
+    row_position: u64,
+    values: &[(u8, &str)],
+    embedded_entries: &[EmbeddedIndexEntry<'_>],
+) -> Vec<u8> {
+    let mut record = Vec::new();
+    record.extend_from_slice(SQL_RECORD_PREFIX);
+    record.push(b'U');
+    record.extend_from_slice(&row_position.to_le_bytes());
+    write_string_u16(&mut record, table);
+    record.extend_from_slice(&(values.len() as u16).to_le_bytes());
+    for (value_type, value) in values {
+        record.push(*value_type);
+        record.extend_from_slice(&(value.len() as u32).to_le_bytes());
+        record.extend_from_slice(value.as_bytes());
+    }
+    record.extend_from_slice(&(embedded_entries.len() as u16).to_le_bytes());
+    for entry in embedded_entries {
+        record.extend_from_slice(&entry.build_id.to_le_bytes());
+        write_string_u16(&mut record, entry.index_name);
+        record.extend_from_slice(&entry.indexed_key.to_le_bytes());
+        record.extend_from_slice(&entry.tie_break.to_le_bytes());
+        record.extend_from_slice(&entry.row_position.to_le_bytes());
+    }
+    record
+}
+
+fn delete_row_record(table: &str, row_position: u64) -> Vec<u8> {
+    let mut record = Vec::new();
+    record.extend_from_slice(SQL_RECORD_PREFIX);
+    record.push(b'D');
+    write_string_u16(&mut record, table);
+    record.extend_from_slice(&row_position.to_le_bytes());
+    record
+}
+
 fn append_users_catalog_with_one_row(path: &Path) {
     append_fixture_record(
         path,
@@ -436,6 +495,451 @@ fn append_users_catalog_with_one_row(path: &Path) {
             &[(b'I', "1"), (b'I', "10"), (b'I', "100"), (b'T', "ada")],
         ),
     );
+}
+
+fn append_users_mutation_contract_catalog(path: &Path) {
+    append_fixture_record(
+        path,
+        &catalog_record(
+            "users",
+            &[
+                ("id", b'I', true),
+                ("age", b'I', false),
+                ("name", b'T', false),
+            ],
+        ),
+    );
+}
+
+fn append_users_mutation_contract_rows(path: &Path, rows: &[(i64, i64, &str)]) {
+    for (id, age, name) in rows {
+        append_fixture_record(
+            path,
+            &row_record(
+                "users",
+                &[
+                    (b'I', &id.to_string()),
+                    (b'I', &age.to_string()),
+                    (b'T', name),
+                ],
+            ),
+        );
+    }
+}
+
+fn append_idx_users_age_commit(path: &Path, entries: &[(i64, i64, u64)]) {
+    for (indexed_key, tie_break, row_position) in entries {
+        append_fixture_record(
+            path,
+            &secondary_index_entry_record(
+                2,
+                "idx_users_age",
+                *indexed_key,
+                *tie_break,
+                *row_position,
+            ),
+        );
+    }
+    append_fixture_record(
+        path,
+        &secondary_index_metadata_record(2, "idx_users_age", "users", 1, b'P'),
+    );
+}
+
+#[test]
+fn mutation_contract_update_delete_restart_processes_keep_secondary_indexes_consistent() {
+    let path =
+        temp_db_path("mutation_contract_update_delete_restart_processes_keep_secondary_indexes");
+
+    setup_mutation_contract_fixture(&path);
+
+    assert_exec(&path, "UPDATE users SET age = 30 WHERE id = 2;", 0, "", "");
+    assert_exec(
+        &path,
+        "SELECT * FROM users WHERE age = 20;",
+        0,
+        "id|age|name\n3|20|cal\n",
+        "",
+    );
+    assert_exec(
+        &path,
+        "SELECT * FROM users WHERE age = 30;",
+        0,
+        "id|age|name\n2|30|bea\n4|30|dia\n",
+        "",
+    );
+    assert_exec(
+        &path,
+        "SELECT * FROM users WHERE age BETWEEN 20 AND 30;",
+        0,
+        "id|age|name\n3|20|cal\n2|30|bea\n4|30|dia\n",
+        "",
+    );
+    assert_exec(
+        &path,
+        "SELECT * FROM users WHERE id = 2;",
+        0,
+        "id|age|name\n2|30|bea\n",
+        "",
+    );
+    assert_exec(
+        &path,
+        "SELECT * FROM users;",
+        0,
+        "id|age|name\n1|10|ada\n2|30|bea\n3|20|cal\n4|30|dia\n",
+        "",
+    );
+
+    assert_exec(&path, "DELETE FROM users WHERE id = 3;", 0, "", "");
+    assert_exec(
+        &path,
+        "SELECT * FROM users WHERE age = 20;",
+        0,
+        "id|age|name\n",
+        "",
+    );
+    assert_exec(
+        &path,
+        "SELECT * FROM users WHERE age BETWEEN 10 AND 30;",
+        0,
+        "id|age|name\n1|10|ada\n2|30|bea\n4|30|dia\n",
+        "",
+    );
+    assert_exec(
+        &path,
+        "SELECT * FROM users WHERE id = 3;",
+        0,
+        "id|age|name\n",
+        "",
+    );
+    assert_exec(
+        &path,
+        "SELECT * FROM users;",
+        0,
+        "id|age|name\n1|10|ada\n2|30|bea\n4|30|dia\n",
+        "",
+    );
+    assert_check_ok(&path);
+
+    let records = read_fixture_records(&path);
+    assert_eq!(
+        1,
+        count_record_kind(&records, b'U'),
+        "UPDATE must persist one durable logical mutation record"
+    );
+    assert_eq!(
+        1,
+        count_record_kind(&records, b'D'),
+        "DELETE must persist one durable logical mutation record"
+    );
+
+    cleanup(&path);
+}
+
+#[test]
+fn mutation_contract_retained_wal_replay_keeps_secondary_indexes_consistent() {
+    let path = temp_db_path("mutation_contract_retained_wal_replay_keeps_secondary_indexes");
+
+    setup_mutation_contract_fixture(&path);
+    assert_exec(&path, "UPDATE users SET age = 30 WHERE id = 2;", 0, "", "");
+    assert_exec(&path, "DELETE FROM users WHERE id = 3;", 0, "", "");
+
+    let wal = wal_path(&path);
+    assert!(
+        path.exists(),
+        "WAL replay evidence requires the page file to remain present"
+    );
+    assert!(
+        wal.exists(),
+        "WAL replay evidence requires the retained sidecar {:?}",
+        wal
+    );
+    assert_exec(
+        &path,
+        "SELECT * FROM users WHERE age BETWEEN 10 AND 30;",
+        0,
+        "id|age|name\n1|10|ada\n2|30|bea\n4|30|dia\n",
+        "",
+    );
+    assert_check_ok(&path);
+
+    cleanup(&path);
+}
+
+#[test]
+fn mutation_contract_wal_only_update_delete_frames_replay_secondary_indexes() {
+    let path = temp_db_path("mutation_contract_wal_only_update_delete_frames_replay");
+
+    setup_mutation_contract_fixture(&path);
+    append_committed_wal_frame(
+        &path,
+        11,
+        10,
+        &update_row_record(
+            "users",
+            1,
+            &[(b'I', "2"), (b'I', "30"), (b'T', "bea")],
+            &[EmbeddedIndexEntry {
+                build_id: 5,
+                index_name: "idx_users_age",
+                indexed_key: 30,
+                tie_break: 2,
+                row_position: 1,
+            }],
+        ),
+    );
+    append_committed_wal_frame(&path, 12, 11, &delete_row_record("users", 2));
+
+    assert_exec(
+        &path,
+        "SELECT * FROM users WHERE age BETWEEN 10 AND 30;",
+        0,
+        "id|age|name\n1|10|ada\n2|30|bea\n4|30|dia\n",
+        "",
+    );
+    assert_check_ok(&path);
+
+    cleanup(&path);
+}
+
+#[test]
+fn db_check_rejects_invalid_committed_mutation_wal_without_poisoning_base_file() {
+    let path = temp_db_path("invalid_committed_mutation_wal_does_not_poison_base");
+
+    setup_mutation_contract_fixture(&path);
+    let base_record_count = read_fixture_records(&path).len();
+    append_committed_wal_frame(
+        &path,
+        11,
+        base_record_count as u64,
+        &update_row_record(
+            "users",
+            99,
+            &[(b'I', "2"), (b'I', "30"), (b'T', "bea")],
+            &[EmbeddedIndexEntry {
+                build_id: 5,
+                index_name: "idx_users_age",
+                indexed_key: 30,
+                tie_break: 2,
+                row_position: 99,
+            }],
+        ),
+    );
+
+    assert_check_secondary_index_failure(&path);
+    assert_invalid_sql_storage_failure(&exec_sql(&path, "SELECT * FROM users;"));
+
+    fs::remove_file(wal_path(&path)).expect("invalid WAL sidecar should be removable");
+    assert_check_ok(&path);
+    assert_eq!(
+        base_record_count,
+        read_fixture_records(&path).len(),
+        "invalid WAL frame must not be appended to the durable page file"
+    );
+
+    cleanup(&path);
+}
+
+#[test]
+fn update_validates_set_column_and_type_before_missing_target_noop() {
+    let path = temp_db_path("update_validates_set_column_and_type_before_missing_target");
+
+    setup_mutation_contract_fixture(&path);
+    assert_exec(
+        &path,
+        "UPDATE users SET missing = 30 WHERE id = 999;",
+        2,
+        "",
+        "error: SQL semantic error: column not found for UPDATE: missing\nhint: UPDATE can SET an existing non-primary-key column.\n",
+    );
+    assert_exec(
+        &path,
+        "UPDATE users SET age = 'bad' WHERE id = 999;",
+        2,
+        "",
+        "error: SQL semantic error: type mismatch for column age: expected INT, got TEXT\nhint: UPDATE values must match the declared column type.\n",
+    );
+
+    cleanup(&path);
+}
+
+#[test]
+fn unsupported_mutation_breadth_is_rejected_without_mutating_rows() {
+    let path = temp_db_path("unsupported_mutation_breadth_is_rejected");
+
+    setup_mutation_contract_fixture(&path);
+    assert_exec(
+        &path,
+        "UPDATE users SET id = 9 WHERE id = 1;",
+        2,
+        "",
+        "error: SQL semantic error: cannot update primary key column: id\nhint: this SQL slice supports UPDATE of non-primary-key columns only.\n",
+    );
+    assert_exec(
+        &path,
+        "UPDATE users SET age = 30 WHERE age = 10;",
+        2,
+        "",
+        "error: SQL semantic error: primary key predicate required for table users\nhint: UPDATE and DELETE require WHERE on the INT PRIMARY KEY column.\n",
+    );
+    assert_exec(
+        &path,
+        "DELETE FROM users WHERE age = 10;",
+        2,
+        "",
+        "error: SQL semantic error: primary key predicate required for table users\nhint: UPDATE and DELETE require WHERE on the INT PRIMARY KEY column.\n",
+    );
+    assert_exec(
+        &path,
+        "SELECT * FROM users;",
+        0,
+        "id|age|name\n1|10|ada\n2|20|bea\n3|20|cal\n4|30|dia\n",
+        "",
+    );
+
+    cleanup(&path);
+}
+
+#[test]
+fn mutations_on_tables_without_primary_key_are_rejected() {
+    let path = temp_db_path("mutations_without_primary_key_are_rejected");
+
+    assert_exec(
+        &path,
+        "CREATE TABLE users (id INT, age INT); INSERT INTO users VALUES (1, 10);",
+        0,
+        "",
+        "",
+    );
+    assert_exec(
+        &path,
+        "UPDATE users SET age = 30 WHERE id = 1;",
+        2,
+        "",
+        "error: SQL semantic error: primary key predicate required for table users\nhint: UPDATE and DELETE require WHERE on the INT PRIMARY KEY column.\n",
+    );
+    assert_exec(
+        &path,
+        "DELETE FROM users WHERE id = 1;",
+        2,
+        "",
+        "error: SQL semantic error: primary key predicate required for table users\nhint: UPDATE and DELETE require WHERE on the INT PRIMARY KEY column.\n",
+    );
+    assert_exec(&path, "SELECT * FROM users;", 0, "id|age\n1|10\n", "");
+
+    cleanup(&path);
+}
+
+#[test]
+fn noop_mutations_do_not_advance_same_command_create_index_build_id() {
+    let path = temp_db_path("noop_mutations_do_not_advance_create_index_build_id");
+
+    assert_exec(
+        &path,
+        "CREATE TABLE users (id INT PRIMARY KEY, age INT); INSERT INTO users VALUES (1, 10);",
+        0,
+        "",
+        "",
+    );
+    assert_exec(
+        &path,
+        "UPDATE users SET age = 30 WHERE id = 999; DELETE FROM users WHERE id = 999; CREATE INDEX idx_users_age ON users(age);",
+        0,
+        "",
+        "",
+    );
+
+    let records = read_fixture_records(&path);
+    let metadata: Vec<DecodedSecondaryMetadata> = records
+        .iter()
+        .filter(|record| sql_record_kind(record) == b'X')
+        .map(|record| decode_secondary_metadata(record))
+        .collect();
+    assert_eq!(
+        vec![DecodedSecondaryMetadata {
+            build_id: 2,
+            index_name: "idx_users_age".to_string(),
+            table_name: "users".to_string(),
+            indexed_column: 1,
+            tie_break_mode: b'P',
+        }],
+        metadata
+    );
+
+    cleanup(&path);
+}
+
+#[test]
+fn mutation_contract_db_check_rejects_stale_secondary_entry_after_update() {
+    let path = temp_db_path("mutation_contract_stale_secondary_entry_after_update");
+
+    append_users_mutation_contract_catalog(&path);
+    append_users_mutation_contract_rows(
+        &path,
+        &[
+            (1, 10, "ada"),
+            (2, 30, "bea"),
+            (3, 20, "cal"),
+            (4, 30, "dia"),
+        ],
+    );
+    append_idx_users_age_commit(&path, &[(10, 1, 0), (20, 2, 1), (20, 3, 2), (30, 4, 3)]);
+
+    assert_check_secondary_index_failure(&path);
+    cleanup(&path);
+}
+
+#[test]
+fn mutation_contract_db_check_rejects_dangling_secondary_pointer_after_delete() {
+    let path = temp_db_path("mutation_contract_dangling_secondary_pointer_after_delete");
+
+    append_users_mutation_contract_catalog(&path);
+    append_users_mutation_contract_rows(&path, &[(1, 10, "ada"), (2, 30, "bea"), (4, 30, "dia")]);
+    append_idx_users_age_commit(&path, &[(10, 1, 0), (30, 2, 1), (20, 3, 99), (30, 4, 2)]);
+
+    assert_check_secondary_index_failure(&path);
+    cleanup(&path);
+}
+
+#[test]
+fn mutation_contract_db_check_rejects_secondary_pointer_to_deleted_row_slot() {
+    let path = temp_db_path("mutation_contract_secondary_pointer_to_deleted_row_slot");
+
+    append_users_mutation_contract_catalog(&path);
+    append_users_mutation_contract_rows(
+        &path,
+        &[
+            (1, 10, "ada"),
+            (2, 30, "bea"),
+            (3, 20, "cal"),
+            (4, 30, "dia"),
+        ],
+    );
+    append_fixture_record(&path, &delete_row_record("users", 2));
+    append_idx_users_age_commit(&path, &[(10, 1, 0), (30, 2, 1), (20, 3, 2), (30, 4, 3)]);
+
+    assert_check_secondary_index_failure(&path);
+    cleanup(&path);
+}
+
+#[test]
+fn mutation_contract_db_check_rejects_missing_visible_secondary_entry() {
+    let path = temp_db_path("mutation_contract_missing_visible_secondary_entry");
+
+    append_users_mutation_contract_catalog(&path);
+    append_users_mutation_contract_rows(
+        &path,
+        &[
+            (1, 10, "ada"),
+            (2, 30, "bea"),
+            (3, 20, "cal"),
+            (4, 30, "dia"),
+        ],
+    );
+    append_idx_users_age_commit(&path, &[(10, 1, 0), (30, 2, 1), (20, 3, 2)]);
+
+    assert_check_secondary_index_failure(&path);
+    cleanup(&path);
 }
 
 #[test]

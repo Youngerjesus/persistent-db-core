@@ -30,8 +30,19 @@ pub fn check_database(path: impl AsRef<Path>) -> Result<(), CheckError> {
         },
     })?;
 
-    sql::validate_records_for_check(snapshot.records)
-        .map_err(|label| CheckError::Invariant { label })?;
+    let wal_records = storage::read_committed_wal_records_for_check(path, snapshot.record_count)
+        .map_err(|error| match error {
+            StorageError::Io => CheckError::OpenRead {
+                path: path.to_path_buf(),
+            },
+            _ => CheckError::Invariant {
+                label: "wal replay consistency",
+            },
+        })?;
+    let mut records = snapshot.records;
+    records.extend(wal_records);
+
+    sql::validate_records_for_check(records).map_err(|label| CheckError::Invariant { label })?;
 
     storage::validate_wal_for_check(path, snapshot.record_count).map_err(|error| match error {
         StorageError::Io => CheckError::OpenRead {

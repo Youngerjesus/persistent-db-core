@@ -22,6 +22,10 @@ impl PrimaryIndex {
         self.positions_by_key.get(&key).copied()
     }
 
+    pub fn remove(&mut self, key: i64) -> Option<usize> {
+        self.positions_by_key.remove(&key)
+    }
+
     pub fn ordered_positions(&self) -> Vec<usize> {
         self.positions_by_key.values().copied().collect()
     }
@@ -78,6 +82,11 @@ impl SecondaryIndex {
             .range((low, i64::MIN)..=(high, i64::MAX))
             .map(|(_, row_position)| *row_position)
             .collect()
+    }
+
+    pub fn remove(&mut self, key: i64, tie_break: i64) -> Option<usize> {
+        self.positions_by_key_and_tie_break
+            .remove(&(key, tie_break))
     }
 }
 
