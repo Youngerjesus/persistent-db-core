@@ -7,8 +7,8 @@ order.
 ## Supported Grammar
 
 ```text
-CREATE TABLE <table_name> (<column_name> INT|TEXT[, <column_name> INT|TEXT]*);
-CREATE TABLE <table_name> (<column_name> INT PRIMARY KEY[, <column_name> INT|TEXT]*);
+CREATE TABLE <table_name> (<column_name> INT|INTEGER|TEXT[, <column_name> INT|INTEGER|TEXT]*);
+CREATE TABLE <table_name> (<column_name> INT|INTEGER PRIMARY KEY[, <column_name> INT|INTEGER|TEXT]*);
 CREATE INDEX <index_name> ON <table_name>(<integer_column>);
 INSERT INTO <table_name> VALUES (<value>[, <value>]*);
 UPDATE <table_name> SET <non_primary_key_column> = <value> WHERE <primary_key_column> = <int_value>;
@@ -22,13 +22,15 @@ SELECT * FROM <table_name> WHERE <indexed_int_column> BETWEEN <low_int> AND <hig
 Keywords compare ASCII case-insensitively. Identifiers must match
 `[A-Za-z_][A-Za-z0-9_]*`. Table and column equality is ASCII
 case-insensitive, while stored catalog spelling is preserved for headers and
-errors. Types are `INT` and `TEXT`. `INT` values are signed 64-bit decimal
-integers. `TEXT` values are UTF-8 strings inside single quotes; escape
+errors. Types are `INT`, `INTEGER`, and `TEXT`. `INTEGER` is a spelling alias
+for the existing `INT` type, not a separate affinity system. `INT` values are
+signed 64-bit decimal integers. `TEXT` values are UTF-8 strings inside single quotes; escape
 sequences, embedded single quotes, `|`, newline, and carriage return are not
 supported.
 
-This slice supports at most one `INT PRIMARY KEY` column per table. Secondary
-indexes are explicit and support only `INT` columns. `TEXT PRIMARY KEY`,
+This slice supports at most one `INT PRIMARY KEY` or `INTEGER PRIMARY KEY`
+column per table. Secondary indexes are explicit and support only integer
+columns. `TEXT PRIMARY KEY`,
 multiple primary-key columns, non-indexed non-primary-key predicates, range
 predicates before `CREATE INDEX`, and non-integer predicate values are rejected.
 
@@ -40,7 +42,7 @@ transactions are out of scope.
 
 `SELECT * FROM <table_name>;` prints the catalog column order as a header. For
 tables without a primary key, rows print in successful `INSERT` append order.
-For tables with an `INT PRIMARY KEY`, rows print in ascending primary-key order.
+For tables with an `INT PRIMARY KEY` or `INTEGER PRIMARY KEY`, rows print in ascending primary-key order.
 `SELECT * FROM <table_name> WHERE <primary_key_column> = <int_value>;` prints
 the header and the matching row, or only the header when the key is missing.
 After `CREATE INDEX`, equality and `BETWEEN` predicates on the indexed `INT`
@@ -54,7 +56,7 @@ print only the header. Multiple `SELECT` statements repeat headers without blank
 lines, separators, or count lines.
 
 `UPDATE` and `DELETE` are mutation statements and write no stdout on success.
-They require an equality predicate on the table's `INT PRIMARY KEY` column.
+They require an equality predicate on the table's integer primary-key column.
 `UPDATE` may set one existing non-primary-key column to a value matching that
 column's declared type. `DELETE` makes the matching row invisible to table
 scans, primary-key lookup, and secondary-index equality/range scans. Missing

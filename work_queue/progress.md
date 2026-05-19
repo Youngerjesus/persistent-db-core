@@ -2,7 +2,7 @@
 
 ## Current State
 
-`persistent-db-core` now has the V1 CLI smoke contract, durable page storage, the minimal SQL schema/execute path, primary-key indexed lookup/ordered scan proof, disk-backed secondary-index equality/range proof, mutation-maintained secondary-index UPDATE/DELETE proof, current-SHA transaction WAL replay evidence for `db exec`, deterministic crash matrix coverage for WAL recovery boundaries, `db check` invariant validation for existing database files, SQLite-backed differential/property evidence for the supported SQL subset, and repo-local benchmark/acceptance documentation evidence. The next smallest implementation handoff should target the remaining V1 acceptance blocker on top of the SQL execution, recovery, check, differential, benchmark, and index baselines.
+`persistent-db-core` now has the V1 CLI smoke contract, durable page storage, the minimal SQL schema/execute path, primary-key indexed lookup/ordered scan proof, disk-backed secondary-index equality/range proof, mutation-maintained secondary-index UPDATE/DELETE proof, current-SHA transaction WAL replay evidence for `db exec`, deterministic crash matrix coverage for WAL recovery boundaries, `db check` invariant validation for existing database files, SQLite-backed differential/property evidence for the supported SQL subset, and public `db bench` Section 14 100k benchmark acceptance evidence. The next smallest implementation handoff should target any remaining non-Section 14 V1 source-required obligations on top of the SQL execution, recovery, check, differential, benchmark, and index baselines.
 
 ## Gap Snapshot
 
@@ -18,10 +18,11 @@
 | gap-v1-deterministic-crash-matrix | verification_ready | Deterministic crash matrix covers pre-WAL append, partial WAL frame, uncommitted frame, committed replay idempotence, interrupted recovery retry, and corrupt tail cleanup evidence. |
 | gap-v1-differential-property-tests | verification_ready | SQLite-backed deterministic differential/property tests cover supported SQL subset generation, duplicate-key errors, missing lookups, ordered scans, seed replay, and failure artifact reporting. |
 | gap-v1-db-check-invariants | verification_ready | `db check <path>` validates existing page records, SQL catalog/row invariants, primary-key rebuildability, WAL sidecar ordering, missing paths, and directory-path open/read errors. |
-| gap-v1-bench-docs-acceptance | verification_ready | `scripts/verify_bench_acceptance` records deterministic lower-bound JSON evidence, and `docs/v1_acceptance.md` maps launch gates to current evidence and explicit blockers. |
+| gap-v1-bench-docs-acceptance | verification_ready | Public `db bench` and `scripts/verify_bench_acceptance` generate and validate Section 14 100000-row JSON evidence with index-vs-scan, recovery proportionality, hard-fail, and documentation traceability coverage. |
 
 ## Recent Entries
 
+- 2026-05-19: Added public `db bench` Section 14 acceptance evidence for the fixed 100000-row workload, index-vs-scan lower bounds, WAL recovery proportionality, hard-fail verifier policy, CLI contract docs, performance report, V1 acceptance mapping, and bug diary traceability.
 - 2026-05-19: Added mutation-maintained secondary-index proof for primary-key-targeted `UPDATE`/`DELETE`, including restart/reopen query evidence, retained and WAL-only replay coverage, positive `db check`, and deterministic stale/dangling/missing secondary-index negative fixtures.
 - 2026-05-19: Added disk-backed secondary-index support for `CREATE INDEX`, indexed equality and inclusive `BETWEEN` range scans, deterministic key/tie-break ordering, reopen/backfill/WAL replay coverage, and `db check` secondary-index invariant validation.
 - 2026-05-18: Added repo-local benchmark acceptance evidence with `scripts/verify_bench_acceptance`, documented lower-bound policy in `docs/benchmarks.md`, and mapped V1 launch gates in `docs/v1_acceptance.md` with explicit missing-evidence blockers.

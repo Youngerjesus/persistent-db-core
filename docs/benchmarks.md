@@ -1,99 +1,129 @@
-# V1 Benchmark Acceptance
+# V1 Section 14 Benchmark Acceptance
 
-This document defines the repo-local benchmark evidence for V1 acceptance. The authoritative command is:
+Section 14 benchmark acceptance is a public CLI contract. The writer command is:
+
+```bash
+db bench
+```
+
+The verifier command is:
 
 ```bash
 scripts/verify_bench_acceptance
 ```
 
-The command writes machine-readable evidence to:
+Both commands use the canonical evidence file:
 
 ```text
-target/bench_acceptance/v1-bench-docs-acceptance.json
+target/bench_acceptance/section14-benchmark-acceptance.json
 ```
 
-The evidence id for final reporting is `evidence-v1-benchmark-lower-bounds`.
-
-## Scope
-
-The benchmark measures the existing single-process Rust CLI path by invoking `cargo run --quiet --bin db -- exec <temp-db> <sql>`. It does not add or call a public `db bench` command; `db bench` remains a reserved future CLI command and is not available for users.
-
-The workload uses a deterministic temporary database and this table:
-
-```sql
-CREATE TABLE bench_items(id INT, value TEXT);
-```
-
-Each scenario uses 1,000 rows with `id` values from `1` through `1000` and `value` strings from `value-0001` through `value-1000`.
-
-## Scenarios
-
-| Scenario | Measured operation | Required validation | Lower-bound floor |
-| --- | --- | --- | --- |
-| `bench_insert_1k` | Create `bench_items(id INT, value TEXT)` and insert 1,000 rows through `db exec`. | The command exits successfully and stderr is empty. | `insert_rows_per_second >= 25` |
-| `bench_reopen_select_1k` | Reopen the populated database in a new `db exec` process and run `SELECT * FROM bench_items;`. | The output has header `id|value`, 1,000 data rows, first row `1|value-0001`, last row `1000|value-1000`, and stderr is empty. | `select_rows_per_second >= 50` |
-
-## Measurement Policy
-
-Each scenario runs one warmup iteration that is not included in pass/fail evidence, followed by three measured iterations. Every measured iteration uses a fresh temporary database. The pass/fail rule uses the minimum measured rows per second, recorded as `observed_min_rows_per_second`; average, median, or best-case values are not sufficient. If any measured iteration is below its floor, `scripts/verify_bench_acceptance` exits non-zero.
-
-These floors are acceptance lower bounds for the repo-local V1 smoke workload. They are intentionally conservative and do not claim throughput on arbitrary hardware.
-
-## Current Evidence
-
-The authoritative current-run values are the `observed_min_rows_per_second` fields in `target/bench_acceptance/v1-bench-docs-acceptance.json`. The latest local implementation evidence used for this acceptance update recorded:
-
-| Scenario | Current observed minimum | Required floor | Interpretation |
-| --- | --- | --- | --- |
-| `bench_insert_1k` | `2793.296` rows/second | `insert_rows_per_second >= 25` | The minimum measured insert iteration exceeded the acceptance floor. |
-| `bench_reopen_select_1k` | `4065.041` rows/second | `select_rows_per_second >= 50` | The minimum measured reopen/select iteration exceeded the acceptance floor. |
-
-The final verifier should rerun `scripts/verify_bench_acceptance` and treat the regenerated JSON as the current source of truth if the numbers differ from this documented implementation-run snapshot.
-
-## Environment Assumptions
-
-The evidence is local-machine benchmark evidence. The generated JSON records the concrete OS, architecture, CPU, `rustc` version, `cargo` version, and logical CPU count for the run. The implementation-run snapshot above was produced on Darwin arm64 with an Apple M2 Max CPU and Rust/Cargo 1.84.0 toolchain. Different OS, CPU, thermal state, storage, or toolchain conditions may produce different measured values; acceptance is based on meeting the conservative floors in the current verifier run, not on reproducing the exact snapshot values.
-
-## JSON Schema
-
-The JSON artifact includes at least these top-level fields:
+Successful `db bench` prints:
 
 ```text
-schema_version
-evidence_id
-repo_sha
-created_at
-command
-environment
-policy
-scenarios
-overall_passed
+DB_BENCH: PASS evidence=target/bench_acceptance/section14-benchmark-acceptance.json
 ```
 
-`environment` records OS, architecture, `rustc` version, `cargo` version, logical CPU count, and CPU model when available.
-
-Each `scenarios[]` entry includes:
+Successful `scripts/verify_bench_acceptance` prints:
 
 ```text
-id
-row_count
-warmup_iterations
-measured_iterations
-threshold_rows_per_second
-observed_min_rows_per_second
-iterations
-passed
+BENCH_ACCEPTANCE: PASS evidence=target/bench_acceptance/section14-benchmark-acceptance.json
 ```
 
-Each `iterations[]` entry includes:
+Failures use `DB_BENCH: FAIL check=<check_id> reason=<reason>` or
+`BENCH_ACCEPTANCE: FAIL check=<check_id> reason=<reason>`.
+
+## Section 14 Fixture
+
+The benchmark fixture table is:
 
 ```text
-iteration
-duration_ms
-rows_per_second
-exit_status
+bench_items(id INTEGER PRIMARY KEY, group_key INTEGER, payload TEXT)
 ```
+
+The dataset has 100,000 rows, `primary_key_type="INTEGER"`, secondary index
+`idx_section14_bench_group_key`, `secondary_index_column="group_key"`,
+`deterministic_seed=140014`, `text_bytes_min=8`, `text_bytes_max=64`,
+`warmup_runs=1`, and `measurement_runs=5`.
+
+Generation is fixed:
+
+```text
+group_key = ((id * 7919 + deterministic_seed) % 10000) + 1
+payload length = 8 + ((id * 17 + deterministic_seed) % 57)
+```
+
+Measured query sets are fixed by the Section 14 contract: 100 primary-key
+lookups, 100 secondary equality indexed lookups, 100 secondary equality scan
+comparisons, 50 secondary range indexed scans, and 50 range scan comparisons per
+measured run. The range window is 50 distinct `group_key` values. With five
+measured runs, warmup excluded, the measured query count is 2,000.
+
+## Metrics And Thresholds
+
+The evidence `schema_version` includes top-level `metrics`, `recovery`,
+`index_use_evidence`, `hard_fail_checks`, and `result` fields.
+
+Required metric fields are:
+
+```text
+sequential_insert_elapsed_ms
+insert_throughput_rows_per_sec
+primary_key_lookup_median_ms
+secondary_equality_indexed_median_ms
+secondary_equality_scan_median_ms
+range_indexed_median_ms
+range_scan_median_ms
+equality_index_speedup
+range_index_speedup
+db_file_bytes
+wal_file_bytes
+```
+
+The lower-bound formulas are fixed:
+
+```text
+equality_index_speedup = secondary_equality_scan_median_ms / secondary_equality_indexed_median_ms
+range_index_speedup = range_scan_median_ms / range_indexed_median_ms
+```
+
+Acceptance requires:
+
+```text
+equality_index_speedup >= 5.0
+range_index_speedup >= 3.0
+recovery_ms <= max(2000, wal_file_bytes / 4096)
+```
+
+Recovery evidence records `committed_transaction_count=10000`,
+`wal_replay_applied_records=10000`, `recovered_row_count=10000`, positive
+`recovery_ms`, numeric `wal_file_bytes`, and a matching
+`representative_lookup_result`.
+
+## Hard-Fail Policy
+
+The verifier rejects missing required fields, non-positive required numeric
+metrics, threshold misses, runtime cap violations, retry-required evidence,
+wrong deterministic fixture constants, and any eligible indexed equality or
+range query whose indexed measurement path observes a full scan. Passing
+`index_use_evidence` rows record `query_kind`, `predicate`,
+`expected_access_path`, `observed_access_path`, `used_index`, `scan_rejected`,
+`indexed_result_count`, `scan_result_count`, and `result_hash_match`.
+
+Requirement traceability:
+
+| Requirement ID | Evidence |
+| --- | --- |
+| `METRIC-14-1` | 100,000-row dataset fields and workload fixture fields in the JSON |
+| `METRIC-14-2` | elapsed, throughput, lookup, and file-size metrics |
+| `METRIC-14-3` | equality/range speedup formulas, medians, and scan comparison evidence |
+| `METRIC-14-4` | 10,000-transaction recovery fields and proportionality check |
+| `FAIL-14-5` | full-scan rejection rows in `index_use_evidence` and `hard_fail_checks` |
+| `EVID-15` | CLI contract, performance report, and V1 acceptance links |
+| `EVID-16-7` | bug diary cause/fix/regression or no-bug rationale |
 
 ## Non-Guarantees
 
-This benchmark is not a network benchmark, a multi-process concurrency benchmark, a durability stress benchmark, or a general hardware performance guarantee. It does not measure unsupported SQL, secondary indexes, concurrent writers, or the reserved `db bench` surface.
+This benchmark is local Section 14 acceptance evidence for the single-process
+Rust CLI. It is not a network benchmark, multi-process concurrency benchmark,
+distributed storage benchmark, or a claim about arbitrary hardware throughput.

@@ -1,4 +1,10 @@
+use std::fs;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
+use std::thread;
+use std::time::Duration;
+
+const TEST_LOCK_DIR: &str = "target/bench_acceptance/.section14.test.lock";
 
 const REQUIRED_HELP_LINES: &[&str] = &[
     "db - deterministic single-process V1 database CLI",
@@ -7,13 +13,14 @@ const REQUIRED_HELP_LINES: &[&str] = &[
     "  db help",
     "  db exec <path> <sql>",
     "  db check <path>",
+    "  db bench",
     "Supported commands:",
     "  help        Print this help text.",
     "  exec <path> <sql>",
     "  check <path>",
+    "  bench       Run the fixed Section 14 benchmark acceptance workload.",
     "Reserved future commands:",
     "  open <path>",
-    "  bench <path>",
     "V1 scope:",
     "  This build supports the CLI contract, page storage, and the documented minimal SQL subset.",
     "Non-goals:",
@@ -25,6 +32,37 @@ fn db(args: &[&str]) -> Output {
         .args(args)
         .output()
         .expect("db binary should run")
+}
+
+struct ProcessTestLock {
+    path: PathBuf,
+}
+
+impl Drop for ProcessTestLock {
+    fn drop(&mut self) {
+        let _ = fs::remove_dir(&self.path);
+    }
+}
+
+fn repo_path(relative: &str) -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join(relative)
+}
+
+fn acquire_benchmark_test_lock() -> ProcessTestLock {
+    let path = repo_path(TEST_LOCK_DIR);
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).expect("benchmark test lock parent should be created");
+    }
+    for _ in 0..3600 {
+        match fs::create_dir(&path) {
+            Ok(()) => return ProcessTestLock { path },
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+                thread::sleep(Duration::from_millis(100));
+            }
+            Err(error) => panic!("benchmark test lock failed: {error}"),
+        }
+    }
+    panic!("timed out acquiring benchmark test lock");
 }
 
 fn stdout(output: &Output) -> String {
@@ -96,7 +134,7 @@ fn reserved_future_command_remains_unsupported() {
 }
 
 #[test]
-fn bench_reserved_future_command_remains_unsupported() {
+fn bench_rejects_extra_path_argument() {
     let output = db(&["bench", "demo.db"]);
 
     assert_eq!(Some(2), output.status.code());
@@ -104,6 +142,36 @@ fn bench_reserved_future_command_remains_unsupported() {
     assert_eq!(
         "error: unsupported argument or command: bench\nhint: run 'db --help' for the supported V1 CLI contract.\n",
         stderr(&output)
+    );
+}
+
+#[test]
+fn bench_public_command_writes_section14_evidence_contract() {
+    let _guard = acquire_benchmark_test_lock();
+    let output = db(&["bench"]);
+
+    assert_eq!(
+        Some(0),
+        output.status.code(),
+        "db bench should pass; stdout={:?}; stderr={:?}",
+        stdout(&output),
+        stderr(&output)
+    );
+    assert_eq!(
+        "",
+        stderr(&output),
+        "db bench stderr must be empty on success"
+    );
+    assert_eq!(
+        "DB_BENCH: PASS evidence=target/bench_acceptance/section14-benchmark-acceptance.json\n",
+        stdout(&output)
+    );
+
+    let evidence_path = repo_path("target/bench_acceptance/section14-benchmark-acceptance.json");
+    assert!(
+        evidence_path.exists(),
+        "db bench must create {}",
+        evidence_path.display()
     );
 }
 

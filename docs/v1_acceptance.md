@@ -19,9 +19,18 @@ Gate source at task handoff: `autopilot/ssot/current-artifact.md`, specifically 
 | `gate-v1-crash-testing` | `req-v1-crash-matrix-output` | `tests/crash_matrix.rs`; `tests/fixtures/crash_matrix/README.md`; `target/crash_matrix/` when generated | `scripts/verify_crash_matrix` when crash-matrix evidence is required; crash tests are also covered by `scripts/verify` if present in the normal test suite | `verified_current_run` |
 | `gate-v1-differential-property-tests` | `req-v1-differential-property-proof` | `tests/differential_property.rs`; `scripts/verify_differential_property`; `target/differential_property/` only when a mismatch artifact is generated | `scripts/verify_differential_property`; blocker: no current passing-run deterministic seed-capture artifact is produced by the existing test command | `seed_capture_missing` |
 | `gate-v1-db-check-invariants` | `req-v1-db-check-proof` | `docs/cli_contract.md`; `tests/db_check.rs` | `cargo test --test db_check`; included in `scripts/verify` | `verified_current_run` |
-| `gate-v1-bench-docs-acceptance` | `req-v1-benchmark-lower-bounds` | `docs/benchmarks.md`; `scripts/verify_bench_acceptance`; `target/bench_acceptance/v1-bench-docs-acceptance.json` | `scripts/verify_bench_acceptance`; final report evidence id `evidence-v1-benchmark-lower-bounds` | `verified_current_run` |
-| `gate-v1-bench-docs-acceptance` | `req-v1-acceptance-docs` | `docs/v1_acceptance.md` | Manual review of this guide against `autopilot/ssot/current-artifact.md`; final report evidence id `evidence-v1-acceptance-docs` | `verified_current_run` |
+| `gate-v1-bench-docs-acceptance` | `req-v1-benchmark-lower-bounds` | `docs/benchmarks.md`; `docs/performance_report.md`; `scripts/verify_bench_acceptance`; `target/bench_acceptance/section14-benchmark-acceptance.json` | `db bench`; `scripts/verify_bench_acceptance`; Section 14 requirement IDs `METRIC-14-1`, `METRIC-14-2`, `METRIC-14-3`, `METRIC-14-4`, `FAIL-14-5`; final report evidence id `evidence-v1-benchmark-lower-bounds` | `verified_current_run` |
+| `gate-v1-bench-docs-acceptance` | `req-v1-acceptance-docs` | `docs/v1_acceptance.md`; `docs/cli_contract.md`; `docs/bug_diary.md` | Manual review of this guide against `autopilot/ssot/current-artifact.md`; Section 14 docs traceability IDs `EVID-15`, `EVID-16-7`; final report evidence id `evidence-v1-acceptance-docs` | `verified_current_run` |
 
 ## Acceptance Boundary
 
-V1 remains a single-process Rust CLI database. This guide does not claim network service behavior, multi-process concurrency, distributed storage, public benchmark CLI support, mutation-maintained secondary-index behavior beyond append-only `INSERT`, or performance beyond the lower-bound workload documented in `docs/benchmarks.md`.
+V1 remains a single-process Rust CLI database. This guide does not claim network service behavior, multi-process concurrency, distributed storage, mutation-maintained secondary-index behavior beyond documented V1 SQL, or performance beyond the Section 14 lower-bound workload documented in `docs/benchmarks.md`.
+
+Section 14 acceptance is tied to `db bench`,
+`scripts/verify_bench_acceptance`, and
+`target/bench_acceptance/section14-benchmark-acceptance.json`. The hard-fail
+formulas are `equality_index_speedup = secondary_equality_scan_median_ms /
+secondary_equality_indexed_median_ms`,
+`range_index_speedup = range_scan_median_ms / range_indexed_median_ms`, and
+`recovery_ms <= max(2000, wal_file_bytes / 4096)`. CLI stdout and exit-code
+behavior are documented in `docs/cli_contract.md`.
