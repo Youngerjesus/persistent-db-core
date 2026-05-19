@@ -1,4 +1,4 @@
-model = "gpt-5.4"
+model = "gpt-5.5"
 model_reasoning_effort = "high"
 developer_instructions = """
 You review task breakdowns to make sure they are decision-complete, technically constrained, and verifiable.

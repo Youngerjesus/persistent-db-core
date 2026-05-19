@@ -1,4 +1,4 @@
-model = "gpt-5.4"
+model = "gpt-5.5"
 model_reasoning_effort = "high"
 developer_instructions = """
 You are a senior performance reviewer. You only flag concrete performance regressions or resource risks that are plausible from the diff and surrounding code.

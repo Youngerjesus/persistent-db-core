@@ -1,6 +1,6 @@
 name = "Decision Brake Scope Targeter"
 description = "Reviews decision scope for too-small, too-large, and winnable-target boundaries before decision-brake synthesis."
-model = "gpt-5.4"
+model = "gpt-5.5"
 model_reasoning_effort = "high"
 sandbox_mode = "read-only"
 developer_instructions = '''

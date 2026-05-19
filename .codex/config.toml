@@ -1,4 +1,4 @@
-model = "gpt-5.4"
+model = "gpt-5.5"
 
 [analytics]
 enabled = false
@@ -73,6 +73,26 @@ config_file = "agents/testing-reviewer.toml"
 [agents.security-reviewer]
 description = "Security reviewer for trust boundaries, auth/authz, injection defense, secret handling, and validation regressions."
 config_file = "agents/security-reviewer.toml"
+
+[agents.maintainability-reviewer]
+description = "Maintainability reviewer for concrete complexity, duplication, coupling, and brittle-structure merge risks."
+config_file = "agents/maintainability-reviewer.toml"
+
+[agents.red-team-reviewer]
+description = "Red-team reviewer for additive bias, silent failures, and cross-category integration gaps."
+config_file = "agents/red-team-reviewer.toml"
+
+[agents.api-reviewer]
+description = "API contract reviewer for endpoint, DTO, schema, transport, status-code, and compatibility changes."
+config_file = "agents/api-reviewer.toml"
+
+[agents.database-reviewer]
+description = "Database reviewer for SQL, migrations, indexes, transactions, queues, persistence, and ORM query changes."
+config_file = "agents/database-reviewer.toml"
+
+[agents.ui-ux-reviewer]
+description = "UI/UX reviewer for component, layout, interaction, accessibility, motion, and visualization changes."
+config_file = "agents/ui-ux-reviewer.toml"
 
 [agents.verifier]
 description = "Verification specialist for checking implementation against spec.md, contracts.md, code, and executed tests."

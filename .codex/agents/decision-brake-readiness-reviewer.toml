@@ -1,6 +1,6 @@
 name = "Decision Brake Readiness Reviewer"
 description = "Reviews whether a decision is executable and handoff-ready, including missing inputs, evidence gaps, and required followups."
-model = "gpt-5.4"
+model = "gpt-5.5"
 model_reasoning_effort = "high"
 sandbox_mode = "read-only"
 developer_instructions = '''

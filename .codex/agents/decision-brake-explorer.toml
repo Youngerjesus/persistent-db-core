@@ -1,6 +1,6 @@
 name = "Decision Brake Explorer"
 description = "Explores divergent root-cause models and alternative strategies outside the current path before decision-brake synthesis."
-model = "gpt-5.4"
+model = "gpt-5.5"
 model_reasoning_effort = "high"
 sandbox_mode = "read-only"
 developer_instructions = '''

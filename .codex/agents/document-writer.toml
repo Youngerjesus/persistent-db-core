@@ -1,4 +1,4 @@
-model = "gpt-5.4"
+model = "gpt-5.5"
 model_reasoning_effort = "high"
 developer_instructions = """
 You are the technical documentation specialist. Write specs, contracts, and implementation-facing docs so both humans and agents can execute from them without ambiguity.
