@@ -1,12 +1,16 @@
 # Artifact identity manifest for task worktree evidence package.
 # Base HEAD: 69fc6b95640bdeed3f7d4249d2ffedc5e6c336ed
+# Verified product HEAD: 6008189f30b8e2cd38ad6ab5994c89c373d386ca
+# Current code-review-retry evidence repairs may be worktree changes layered on
+# that product HEAD; this manifest binds their current bytes by digest and does
+# not claim they are already contained inside the product HEAD commit.
 # This manifest intentionally excludes itself and mutable latest review reports.
-67ea135ba7948903be9c683b92cc715964b3a6def730672595197f311e738826  tracked-diff:src/main.rs,src/sql.rs,tests/primary_index.rs,tests/sql_exec.rs,docs/v1_acceptance.md,docs/cli_contract.md,docs/sql_subset.md,docs/file_format.md
+050453ffbeb520f80573f01d5c9413acbeb4d3a4f28797d972cc129c93994b4e  tracked-diff:git-diff-main:src/main.rs,src/sql.rs,tests/primary_index.rs,tests/sql_exec.rs,docs/v1_acceptance.md,docs/cli_contract.md,docs/sql_subset.md,docs/file_format.md
 b6882458b8353186c20c7bcff103073fae000c9ecb3a0725b8e2adb792a6e471  scripts/verify_primary_index_acceptance
 9e34c57895b8901d504c28de7a493db4f1cf2c990542aa72553ccf8a4acea20f  specs/v1-primary-index-current-artifact-evidence-refresh/analysis_report.md
 5b236d2e9442336b5645d15805ecd3d10526a56eb88cec54315469cc7b18a903  specs/v1-primary-index-current-artifact-evidence-refresh/contracts.md
 644dca721accb7d224d4e19dc0bbd73d78b1a8fc9008963913163caa7579fa06  specs/v1-primary-index-current-artifact-evidence-refresh/design.md
-894d10b0eab52e4bbee5961e301f37058570f89c86436133a489233f46dd9880  specs/v1-primary-index-current-artifact-evidence-refresh/final_review.md
+39f727682dbe3001abb3a63f145bb7436eae09c72e2724655f3918f2f5f9b6c2  specs/v1-primary-index-current-artifact-evidence-refresh/final_review.md
 fc0da70412fae48736c164779b675a94cd102c0c21fbcf3ecdb0d9950131f47e  specs/v1-primary-index-current-artifact-evidence-refresh/fresh_repair_baseline.md
 d575772bde4122bd1413d987bb9d961728579cb4dc6657a20a7fcfc15a69a367  specs/v1-primary-index-current-artifact-evidence-refresh/plan.md
 a475b22618404223320c4070f575f1e5eb492d76e616d8f3e6c49626679c0586  specs/v1-primary-index-current-artifact-evidence-refresh/qa_mapping.md

@@ -29,3 +29,4 @@
 ## 2026-05-20
 
 - Refreshed disk page-storage current-artifact evidence for `gate-v1-disk-page-storage`, tying 4096-byte page layout, restart durability, live-file append visibility, and bounded same-page write behavior to focused and baseline verification.
+- Refreshed primary-index current-artifact evidence for `gate-v1-indexes`, tying integer primary-key lookup, key-ordered scan, duplicate-key rejection, valid duplicate persisted-row failure, and V1 acceptance traceability to focused and baseline verification.
