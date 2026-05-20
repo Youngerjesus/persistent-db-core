@@ -30,3 +30,7 @@
 
 - Refreshed disk page-storage current-artifact evidence for `gate-v1-disk-page-storage`, tying 4096-byte page layout, restart durability, live-file append visibility, and bounded same-page write behavior to focused and baseline verification.
 - Refreshed primary-index current-artifact evidence for `gate-v1-indexes`, tying integer primary-key lookup, key-ordered scan, duplicate-key rejection, valid duplicate persisted-row failure, and V1 acceptance traceability to focused and baseline verification.
+
+## 2026-05-21
+
+- Refreshed transaction WAL recovery current-artifact evidence for `gate-v1-transactions-wal-recovery`, tying `REQ-8-*` and `REQ-9-*` to focused WAL tests, baseline verification, crash matrix evidence, WAL sidecar smoke proof, and final review traceability.
