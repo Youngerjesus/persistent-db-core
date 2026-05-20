@@ -239,6 +239,14 @@ error: invalid SQL storage record: unknown record tag
 hint: run against a database file created by this SQL contract or restore from a valid backup.
 ```
 
+Persisted duplicate primary-key values in otherwise valid SQL catalog/row
+records exit `1`, write empty stdout, and use this stderr:
+
+```text
+error: invalid SQL storage record: duplicate primary key for table users: 2
+hint: primary key values must be unique in persisted SQL storage.
+```
+
 ## Database Check
 
 Successful `db check <path>` exits `0`, writes no stderr, and writes exactly:
@@ -336,6 +344,8 @@ non-primary-key-targeted mutations, primary-key updates, public transaction
 commands, networking, multi-process concurrency, or distributed storage. Primary
 indexes are rebuilt from durable SQL row records on open. Secondary indexes are
 persisted with SQL logical records documented in `docs/file_format.md`;
-existing row-only SQL files remain compatible. Corrupt SQL row records,
-including duplicate persisted primary-key values, fail with the invalid SQL
-storage record error.
+existing row-only SQL files remain compatible. Corrupt SQL row records fail with
+the documented invalid SQL storage record errors. Duplicate persisted
+primary-key values use the duplicate-primary-key invalid-storage stderr
+documented above; other corrupt SQL logical records, such as unknown record
+tags, use the generic unknown-record-tag invalid-storage stderr.

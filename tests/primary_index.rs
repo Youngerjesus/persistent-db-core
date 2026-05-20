@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
 const SQL_RECORD_PREFIX: &[u8; 8] = b"PDBSQL1\0";
-const INVALID_SQL_STORAGE_STDERR: &str = "error: invalid SQL storage record: unknown record tag\nhint: run against a database file created by this SQL contract or restore from a valid backup.\n";
+const DUPLICATE_PRIMARY_KEY_INVALID_STORAGE_STDERR: &str = "error: invalid SQL storage record: duplicate primary key for table users: 2\nhint: primary key values must be unique in persisted SQL storage.\n";
 
 fn db(args: &[&str]) -> Output {
     Command::new(env!("CARGO_BIN_EXE_db"))
@@ -77,6 +77,14 @@ fn append_fixture_record(path: &Path, payload: &[u8]) {
 }
 
 fn catalog_record(table: &str, columns: &[(&str, u8)]) -> Vec<u8> {
+    catalog_record_with_primary_key(table, columns, None)
+}
+
+fn catalog_record_with_primary_key(
+    table: &str,
+    columns: &[(&str, u8)],
+    primary_key_column: Option<u16>,
+) -> Vec<u8> {
     let mut record = Vec::new();
     record.extend_from_slice(SQL_RECORD_PREFIX);
     record.push(b'C');
@@ -85,6 +93,10 @@ fn catalog_record(table: &str, columns: &[(&str, u8)]) -> Vec<u8> {
     for (name, column_type) in columns {
         write_string_u16(&mut record, name);
         record.push(*column_type);
+    }
+    if let Some(primary_key_column) = primary_key_column {
+        record.push(b'P');
+        record.extend_from_slice(&primary_key_column.to_le_bytes());
     }
     record
 }
@@ -193,13 +205,11 @@ fn primary_index_duplicate_persisted_key_fails_as_invalid_storage_record() {
     let path =
         temp_db_path("primary_index_duplicate_persisted_key_fails_as_invalid_storage_record");
 
-    assert_exec(
+    append_fixture_record(
         &path,
-        "CREATE TABLE users (id INT PRIMARY KEY, name TEXT); INSERT INTO users VALUES (2, 'bea');",
-        0,
-        "",
-        "",
+        &catalog_record_with_primary_key("users", &[("id", b'I'), ("name", b'T')], Some(0)),
     );
+    append_fixture_record(&path, &row_record("users", &[(b'I', "2"), (b'T', "bea")]));
     append_fixture_record(&path, &row_record("users", &[(b'I', "2"), (b'T', "dupe")]));
 
     assert_exec(
@@ -207,7 +217,7 @@ fn primary_index_duplicate_persisted_key_fails_as_invalid_storage_record() {
         "SELECT * FROM users;",
         1,
         "",
-        INVALID_SQL_STORAGE_STDERR,
+        DUPLICATE_PRIMARY_KEY_INVALID_STORAGE_STDERR,
     );
 
     cleanup(&path);

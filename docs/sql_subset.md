@@ -156,6 +156,14 @@ error: invalid SQL storage record: unknown record tag
 hint: run against a database file created by this SQL contract or restore from a valid backup.
 ```
 
+Persisted duplicate primary-key values in otherwise valid SQL catalog/row
+records exit `1`, write empty stdout, and use this stderr:
+
+```text
+error: invalid SQL storage record: duplicate primary key for table users: 2
+hint: primary key values must be unique in persisted SQL storage.
+```
+
 ## SQL Logical Records
 
 The page file format remains the V1 page format in `docs/file_format.md`.
@@ -305,10 +313,12 @@ as non-primary-key tables, so `SELECT *` keeps insert-order output for those
 tables.
 
 If durable row records for a primary-key table contain duplicate primary-key
-values, non-canonical integer values, output-breaking text, unknown type tags,
-or other corrupt SQL logical-record data, `db exec` fails through the existing
-invalid SQL storage record error. There is no missing-index-metadata failure
-mode for primary indexes because no separate primary-index metadata is stored.
+values, `db exec` fails through the duplicate-primary-key invalid-storage
+stderr above. If durable row records contain non-canonical integer values,
+output-breaking text, unknown type tags, or other corrupt SQL logical-record
+data, `db exec` fails through the generic unknown-record-tag invalid-storage
+stderr above. There is no missing-index-metadata failure mode for primary
+indexes because no separate primary-index metadata is stored.
 Secondary indexes use committed `X` metadata plus matching `E` backfill entries
 or embedded entries in `I` records. `CREATE INDEX` appends `E` records before
 the final `X` commit marker; orphan `E` records without matching committed

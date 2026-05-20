@@ -1,0 +1,27 @@
+# Artifact identity manifest for task worktree evidence package.
+# Base HEAD: 69fc6b95640bdeed3f7d4249d2ffedc5e6c336ed
+# Verified product HEAD: 6008189f30b8e2cd38ad6ab5994c89c373d386ca
+# Current code-review-retry evidence repairs may be worktree changes layered on
+# that product HEAD; this manifest binds their current bytes by digest and does
+# not claim they are already contained inside the product HEAD commit.
+# This manifest intentionally excludes itself and mutable latest review reports.
+050453ffbeb520f80573f01d5c9413acbeb4d3a4f28797d972cc129c93994b4e  tracked-diff:git-diff-main:src/main.rs,src/sql.rs,tests/primary_index.rs,tests/sql_exec.rs,docs/v1_acceptance.md,docs/cli_contract.md,docs/sql_subset.md,docs/file_format.md
+b6882458b8353186c20c7bcff103073fae000c9ecb3a0725b8e2adb792a6e471  scripts/verify_primary_index_acceptance
+9e34c57895b8901d504c28de7a493db4f1cf2c990542aa72553ccf8a4acea20f  specs/v1-primary-index-current-artifact-evidence-refresh/analysis_report.md
+5b236d2e9442336b5645d15805ecd3d10526a56eb88cec54315469cc7b18a903  specs/v1-primary-index-current-artifact-evidence-refresh/contracts.md
+644dca721accb7d224d4e19dc0bbd73d78b1a8fc9008963913163caa7579fa06  specs/v1-primary-index-current-artifact-evidence-refresh/design.md
+39f727682dbe3001abb3a63f145bb7436eae09c72e2724655f3918f2f5f9b6c2  specs/v1-primary-index-current-artifact-evidence-refresh/final_review.md
+fc0da70412fae48736c164779b675a94cd102c0c21fbcf3ecdb0d9950131f47e  specs/v1-primary-index-current-artifact-evidence-refresh/fresh_repair_baseline.md
+d575772bde4122bd1413d987bb9d961728579cb4dc6657a20a7fcfc15a69a367  specs/v1-primary-index-current-artifact-evidence-refresh/plan.md
+a475b22618404223320c4070f575f1e5eb492d76e616d8f3e6c49626679c0586  specs/v1-primary-index-current-artifact-evidence-refresh/qa_mapping.md
+4f14985dadc2aff265c5f43667d087aff00a943ccb663c09b8f103963bfb0cbf  specs/v1-primary-index-current-artifact-evidence-refresh/qa_prep_review.md
+ecd95ae723b7280c470f464050669f2abb502de0eb95035ffd79e94c160f60a0  specs/v1-primary-index-current-artifact-evidence-refresh/readiness-preflight.md
+b5dfbe275630b00866cee913aa2522639f0c94e8adb6c515940f4db624963d36  specs/v1-primary-index-current-artifact-evidence-refresh/readiness.md
+3a447328c4c1b7d8016f712676814386a0decea8f5865f88807bfa141ba1e85c  specs/v1-primary-index-current-artifact-evidence-refresh/research.md
+8ad951427e95759cc3eb0475ed296f33c2aabbf5ac7bd66d3eee1de5f22148e6  specs/v1-primary-index-current-artifact-evidence-refresh/review_loop/code_context.md
+6ef35c546e22c0e45b46f4ebf6996c8e17f8cfce7b57fea94ebbd552c659efc4  specs/v1-primary-index-current-artifact-evidence-refresh/review_loop/design.md
+3d83606fcda1e0de0b2e0bc31da4bb83fc2c91a7f305136dd1bea2a7250db0a3  specs/v1-primary-index-current-artifact-evidence-refresh/review_loop/metric_loop.json
+d626426bf43718097698a8c46695b90af5ede341f52683e0d6b3cac4be06b30d  specs/v1-primary-index-current-artifact-evidence-refresh/review_loop/metric_loop_evidence.md
+5eb1c2b3fe43cf53b8c0aa1af3ce9a2095afa21f447963d041d47df14aa79f57  specs/v1-primary-index-current-artifact-evidence-refresh/spec-progress.md
+827f0a9f5dc5e46a83e569b6a20f2736f401ec81a93f5b695b2fc1819d18fffd  specs/v1-primary-index-current-artifact-evidence-refresh/spec.md
+ed206ca8931f56b4ba16a69bceabeed03f0b7d926bc2960733e6f57a8b52aedc  specs/v1-primary-index-current-artifact-evidence-refresh/tasks.md

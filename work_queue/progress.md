@@ -2,7 +2,7 @@
 
 ## Current State
 
-`persistent-db-core` now has the V1 CLI smoke contract, current-artifact durable page storage evidence, the minimal SQL schema/execute path, primary-key indexed lookup/ordered scan proof, disk-backed secondary-index equality/range proof, mutation-maintained secondary-index UPDATE/DELETE proof, current-SHA transaction WAL replay evidence for `db exec`, deterministic crash matrix coverage for WAL recovery boundaries, `db check` invariant validation for existing database files, SQLite-backed differential/property evidence for the supported SQL subset, and public `db bench` Section 14 100k benchmark acceptance evidence. The next smallest implementation handoff should target any remaining non-Section 14 V1 source-required obligations on top of the storage, SQL execution, recovery, check, differential, benchmark, and index baselines.
+`persistent-db-core` now has the V1 CLI smoke contract, current-artifact durable page storage evidence, the minimal SQL schema/execute path, current-artifact primary-key indexed lookup/ordered scan proof, disk-backed secondary-index equality/range proof, mutation-maintained secondary-index UPDATE/DELETE proof, current-SHA transaction WAL replay evidence for `db exec`, deterministic crash matrix coverage for WAL recovery boundaries, `db check` invariant validation for existing database files, SQLite-backed differential/property evidence for the supported SQL subset, and public `db bench` Section 14 100k benchmark acceptance evidence. The next smallest implementation handoff should target any remaining non-Section 14 V1 source-required obligations on top of the storage, SQL execution, recovery, check, differential, benchmark, and index baselines.
 
 ## Gap Snapshot
 
@@ -11,7 +11,7 @@
 | gap-v1-bootstrap-cli-contract | missing_evidence | CLI skeleton exists, but the first CAO handoff should formalize the V1 command contract and smoke coverage. |
 | gap-v1-page-storage-record-format | verification_ready | Current-artifact evidence maps 4096-byte page layout, restart durability, live-file mutation, and bounded same-page write behavior to `gate-v1-disk-page-storage` with focused and baseline verification. |
 | gap-v1-sql-parser-schema-exec | verification_ready | `db exec <path> <sql>` implements the documented minimal SQL subset with deterministic tests, persistence coverage, and durable docs. |
-| gap-v1-primary-btree-index | verification_ready | Primary-key tables rebuild an in-memory B-tree index from durable row records, support exact lookup, scan in primary-key order, and preserve row-only table compatibility. |
+| gap-v1-primary-btree-index | verification_ready | Current-artifact evidence maps `REQ-7-implement-integer-primary-key-as-9c698e08` to primary-key table rebuild, exact lookup, key-ordered scan, duplicate-key rejection/no-overwrite, valid duplicate persisted-row failure, focused acceptance verification, and baseline verification. |
 | gap-v1-secondary-index-range-scan | verification_ready | `CREATE INDEX` creates durable secondary `INT` indexes with indexed equality/range query paths, deterministic ordering, reopen/backfill/WAL replay coverage, and `db check` secondary-index invariant evidence. |
 | gap-v1-secondary-index-mutation-consistency | verification_ready | Primary-key-targeted UPDATE/DELETE maintain table rows, primary indexes, and secondary indexes across restart, retained WAL replay, WAL-only mutation replay, positive `db check`, and deterministic stale/dangling/missing secondary-index negative fixtures. |
 | gap-v1-transaction-wal-recovery | verification_ready | Current-SHA WAL sidecar replay proof covers committed mutation survival, rolled-back/uncommitted frame absence, incomplete-tail exclusion, and retained sidecar state after reopen. |
@@ -22,6 +22,7 @@
 
 ## Recent Entries
 
+- 2026-05-20: Refreshed primary-index current-artifact evidence for `gate-v1-indexes` and `REQ-7-implement-integer-primary-key-as-9c698e08`, including focused primary-index/SQL tests, duplicate persisted-row fixture evidence, acceptance verifier, baseline `scripts/verify`, and V1 acceptance traceability.
 - 2026-05-20: Refreshed disk page-storage current-artifact evidence for `gate-v1-disk-page-storage`, including 4096-byte page/header inspection, restart durability, live-file append proof, bounded same-page write audit, focused verifier script, and V1 acceptance traceability.
 - 2026-05-19: Added public `db bench` Section 14 acceptance evidence for the fixed 100000-row workload, index-vs-scan lower bounds, WAL recovery proportionality, hard-fail verifier policy, CLI contract docs, performance report, V1 acceptance mapping, and bug diary traceability.
 - 2026-05-19: Added mutation-maintained secondary-index proof for primary-key-targeted `UPDATE`/`DELETE`, including restart/reopen query evidence, retained and WAL-only replay coverage, positive `db check`, and deterministic stale/dangling/missing secondary-index negative fixtures.

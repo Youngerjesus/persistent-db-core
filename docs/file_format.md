@@ -62,8 +62,16 @@ Primary indexes are not persisted as separate page records, sidecar files, or
 background metadata. `db exec` rebuilds the in-memory primary index from durable
 row records when the database is opened. A primary-key table with duplicate
 persisted key values is treated as corrupt SQL logical data and fails with the
-existing invalid SQL storage record error. Because no separate index metadata is
-stored, missing index metadata is not a V1 failure mode.
+documented duplicate-primary-key invalid-storage error:
+
+```text
+error: invalid SQL storage record: duplicate primary key for table users: 2
+hint: primary key values must be unique in persisted SQL storage.
+```
+
+Other corrupt SQL logical-record data, such as unknown record tags, continues
+to use the generic unknown-record-tag invalid-storage error. Because no separate
+index metadata is stored, missing index metadata is not a V1 failure mode.
 
 Secondary indexes are persisted as append-only SQL logical records above the
 same page framing. Existing no-index databases containing only `C` and `R`
