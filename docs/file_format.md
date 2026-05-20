@@ -178,6 +178,20 @@ Opening or reading a file validates the header and every declared data page. Sho
 
 V1 is pre-launch and does not guarantee backward compatibility for existing user data. After this page and record format is introduced, format changes must not be made implicitly: the documentation and deterministic tests must be updated together with any intentional format change. SQL logical-record evolution must preserve the lower-level page framing unless a future task explicitly changes the page format contract. The primary-key catalog extension is optional so existing row-only SQL database files remain readable as non-primary-key tables. Secondary-index records are additive, and existing no-index databases remain readable and can be backfilled by a later `CREATE INDEX`. Mutation records are additive SQL logical records above unchanged page framing; existing row-only and existing secondary-index databases reopen unchanged.
 
+## Current Artifact Traceability
+
+The `gate-v1-disk-page-storage` current-artifact evidence is tied to the fixed
+4096-byte page format above and to the focused verifier
+`scripts/verify_page_storage_acceptance`, which runs
+`cargo test --test page_storage`.
+
+| Requirement id | File-format evidence |
+| --- | --- |
+| `REQ-6-store-data-in-a-disk-ad3ffc4e` | `tests/page_storage.rs::qa_scaffold_req_6_store_data_in_disk_current_artifact_layout_evidence` inspects a real page file for 4096-byte alignment, `PDBV1\0\0\0`, version `1`, page count, `PDPG`, record length, and payload bytes. |
+| `REQ-6-data-must-survive-process-restart-0471a233` | `tests/page_storage.rs::qa_scaffold_req_6_restart_durability_current_artifact_evidence` drops and reopens `PageStore` on the same path and verifies byte-for-byte record order without duplicate replay. |
+| `FAIL-6-reject-memory-only-dump-at-fd82a296` | `tests/page_storage.rs::qa_scaffold_fail_6_reject_memory_only_dump_current_artifact_evidence` reads appended record bytes from the page file while `PageStore` is still live, before process-end or drop-only finalization could occur. |
+| `FAIL-6-reject-whole-database-file-rewrite-bebf73bb` | `tests/page_storage.rs::qa_scaffold_fail_6_reject_whole_file_rewrite_current_artifact_evidence` snapshots the header and active data page, appends within the same data page, and verifies stable header/page regions and page count while only the expected active-page record region changes. The same test uses `PageStore::append_record_with_write_audit_for_test` to assert the page-write path records exactly one data-page write range at offset `4096` with length `4096`; this implementation-level audit is paired with byte inspection and source review of the page-write helpers rather than syscall tracing. |
+
 ## Write-Ahead Log Sidecar
 
 Each database path may have a retained local write-ahead log sidecar at

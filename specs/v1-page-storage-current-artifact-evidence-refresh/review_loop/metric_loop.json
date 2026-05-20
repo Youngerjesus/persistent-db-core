@@ -1,0 +1,415 @@
+{
+  "max_rounds": 3,
+  "max_repair_attempts": 2,
+  "threshold": 2,
+  "rounds": [
+    {
+      "round": 1,
+      "metrics": {
+        "objective_plan_gap_fit": {
+          "score": 3,
+          "rationale": "Candidate maps to both an objective metric and a current-plan gap.",
+          "evidence": [
+            "metric:metric-v1-durable-storage",
+            "gap:gap-v1-page-storage-record-format"
+          ]
+        },
+        "causal_evidence_strength": {
+          "score": 3,
+          "rationale": "Candidate has concrete evidence for the proposed intervention.",
+          "evidence": [
+            "Root Progress Projection: gate-v1-disk-page-storage는 open이며 REQ-6-store-data-in-a-disk-ad3ffc4e, REQ-6-data-must-survive-process-restart-0471a233, FAIL-6-reject-memory-only-dump-at-fd82a296, FAIL-6-reject-whole-database-file-rewrite-bebf73bb가 missing_requirement_ids로 남아 있다.",
+            "Root Progress Projection: gap-v1-page-storage-record-format은 stale_needs_recheck이며 blocker는 artifact contract digest does not match current artifact이다.",
+            "Gap Evidence Cache: task-2026-05-16-13-58-47-v1-page-storage-record-format는 SUCCESS 상태이며 src/storage.rs, tests/page_storage.rs, docs/file_format.md 증거가 연결되어 있다.",
+            "Active Managed Repo Snapshot: git_status는 clean이고 Queue Snapshot은 []이다.",
+            "Current Plan: gap-v1-page-storage-record-format은 metric-v1-durable-storage와 gate-v1-disk-page-storage에 직접 연결되어 있다.",
+            "src/storage.rs",
+            "tests/page_storage.rs",
+            "docs/file_format.md",
+            "docs/v1_acceptance.md",
+            "scripts/verify",
+            "specs/v1-page-storage-record-format/spec.md",
+            "specs/v1-page-storage-record-format/contracts.md",
+            "specs/v1-page-storage-record-format/final_review.md",
+            "PAGE_SIZE",
+            "PageStore",
+            "PageStore::open",
+            "PageStore::append_record",
+            "PageStore::read_records",
+            "append_record_to_file_with_cursor",
+            "read_page",
+            "write_page",
+            "StorageError::TruncatedFile",
+            "StorageError::TruncatedPage",
+            "StorageError::InvalidMagic",
+            "StorageError::UnsupportedVersion",
+            "StorageError::RecordTooLarge",
+            "StorageError::CorruptRecordLength",
+            "project_manager/tasks/tasks.json:150",
+            "project_manager/tasks/tasks.json:183",
+            "project_manager/tasks/tasks.json:187",
+            "project_manager/tasks/tasks.json:203",
+            "project_manager/tasks/task_status_events.jsonl:2",
+            "project_manager/tasks/task-2026-05-16-13-58-47-v1-page-storage-record-format/evidence/recovery_20260517_184449_page_storage_evidence/final-verification.json:3",
+            "specs/v1-page-storage-record-format/spec.md:101",
+            "specs/v1-page-storage-record-format/spec.md:112",
+            "specs/v1-page-storage-record-format/contracts.md:22",
+            "specs/v1-page-storage-record-format/final_review.md:1"
+          ]
+        },
+        "handoff_verifiability": {
+          "score": 3,
+          "rationale": "Expected delta and acceptance proof are explicit.",
+          "evidence": [
+            "tests/page_storage.rs 또는 동등한 black-box/focused test가 4096-byte 기본 page layout, page-level read/write abstraction, file header/page inspection을 검증한다.",
+            "restart 후 기존 record를 다시 읽는 deterministic test가 REQ-6-data-must-survive-process-restart-0471a233를 명시적으로 매핑한다.",
+            "memory-only dump-at-end 설계와 every-write full-file rewrite 설계를 거부할 수 있는 bounded mutation/file-inspection evidence가 FAIL-6 요구사항 2개를 명시적으로 매핑한다.",
+            "docs/file_format.md 또는 docs/v1_acceptance.md가 current-artifact requirement IDs와 검증 명령을 연결한다.",
+            "cargo test --test page_storage와 scripts/verify가 managed repo 기준으로 통과한다."
+          ]
+        }
+      },
+      "low_metrics": [],
+      "constraint_blockers": [],
+      "artifact_mapping": {
+        "source": "explicit_candidate",
+        "blocker": "",
+        "blocker_reason": "",
+        "resolved_requirement_ids": [
+          "REQ-6-store-data-in-a-disk-ad3ffc4e",
+          "REQ-6-data-must-survive-process-restart-0471a233",
+          "FAIL-6-reject-memory-only-dump-at-fd82a296",
+          "FAIL-6-reject-whole-database-file-rewrite-bebf73bb"
+        ],
+        "resolved_gates": [
+          "gate-v1-disk-page-storage"
+        ],
+        "explicit": {
+          "requirement_ids": [
+            "REQ-6-store-data-in-a-disk-ad3ffc4e",
+            "REQ-6-data-must-survive-process-restart-0471a233",
+            "FAIL-6-reject-memory-only-dump-at-fd82a296",
+            "FAIL-6-reject-whole-database-file-rewrite-bebf73bb"
+          ],
+          "launch_gates": [
+            "gate-v1-disk-page-storage"
+          ],
+          "valid_requirement_ids": [
+            "REQ-6-store-data-in-a-disk-ad3ffc4e",
+            "REQ-6-data-must-survive-process-restart-0471a233",
+            "FAIL-6-reject-memory-only-dump-at-fd82a296",
+            "FAIL-6-reject-whole-database-file-rewrite-bebf73bb"
+          ],
+          "valid_launch_gates": [
+            "gate-v1-disk-page-storage"
+          ],
+          "unknown_requirement_ids": [],
+          "unknown_launch_gates": [],
+          "resolved_requirement_ids": [
+            "REQ-6-store-data-in-a-disk-ad3ffc4e",
+            "REQ-6-data-must-survive-process-restart-0471a233",
+            "FAIL-6-reject-memory-only-dump-at-fd82a296",
+            "FAIL-6-reject-whole-database-file-rewrite-bebf73bb"
+          ],
+          "resolved_gates": [
+            "gate-v1-disk-page-storage"
+          ],
+          "present": true
+        },
+        "inferred": {
+          "current_plan_gap_id": "gap-v1-page-storage-record-format",
+          "launch_gates": [
+            "gate-v1-disk-page-storage"
+          ],
+          "requirement_ids": [
+            "REQ-6-store-data-in-a-disk-ad3ffc4e",
+            "REQ-6-data-must-survive-process-restart-0471a233",
+            "FAIL-6-reject-memory-only-dump-at-fd82a296",
+            "FAIL-6-reject-whole-database-file-rewrite-bebf73bb"
+          ],
+          "valid": true
+        },
+        "artifact_contract": {
+          "requirement_ids": [
+            "EVID-10-db-check-must-validate-page-195c4e72",
+            "EVID-11-crash-tests-must-recover-check-95f2685f",
+            "EVID-12-use-sqlite-as-differential-oracle-e5469b45",
+            "EVID-13-include-seeded-property-tests-for-60ca360c",
+            "EVID-15-bug-diary-must-record-bug-53b961eb",
+            "EVID-15-require-architecture-storage-format-index-a575878f",
+            "EVID-16-1-black-box-cli-smoke-must-bcfdb1ab",
+            "EVID-16-2-persistence-acceptance-must-prove-committed-0cfc3d80",
+            "EVID-16-3-transaction-atomicity-acceptance-must-cover-dce6b35c",
+            "EVID-16-4-crash-recovery-matrix-must-run-c3aeada6",
+            "EVID-16-5-differential-acceptance-must-compare-generated-0177412b",
+            "EVID-16-6-property-acceptance-must-use-reproducible-f7331be6",
+            "EVID-16-7-performance-acceptance-must-run-db-9901b652",
+            "EVID-7-validate-index-invariants-for-uniqueness-2d153f8e",
+            "FAIL-14-5-reject-every-write-full-file-5bc3a2a9",
+            "FAIL-14-5-reject-performance-evidence-where-indexed-0b2ffef1",
+            "FAIL-18-automatic-v1-failure-for-data-7dee7832",
+            "FAIL-18-automatic-v1-failure-for-table-30284a6c",
+            "FAIL-18-automatic-v1-failure-if-all-e69ba9f4",
+            "FAIL-18-automatic-v1-failure-if-crash-df0385e6",
+            "FAIL-18-automatic-v1-failure-if-implementation-814892ba",
+            "FAIL-18-automatic-v1-failure-if-tests-4fc9e7e4",
+            "FAIL-3-1-unsupported-sql-must-fail-with-68a3ee08",
+            "FAIL-3-3-join-group-by-having-aggregation-89789c06",
+            "FAIL-4-reject-null-values-because-null-7cff87ec",
+            "FAIL-5-syntax-errors-and-unsupported-sql-983b9754",
+            "FAIL-6-reject-memory-only-dump-at-fd82a296",
+            "FAIL-6-reject-whole-database-file-rewrite-bebf73bb",
+            "METRIC-14-1-benchmark-dataset-must-contain-100000-7052d6fb",
+            "METRIC-14-2-benchmark-suite-must-include-sequential-7da5205a",
+            "METRIC-14-3-performance-report-must-include-elapsed-eca58d49",
+            "METRIC-14-4-indexed-equality-lookup-must-be-609f5237",
+            "METRIC-14-4-recovery-must-be-proportional-to-8c0f9dd5",
+            "REQ-10-provide-db-init-db-exec-4ba947a9",
+            "REQ-11-run-workloads-in-a-child-1cc228f3",
+            "REQ-3-1-support-create-table-create-index-578fc989",
+            "REQ-3-2-support-equality-comparison-and-between-fcf162bb",
+            "REQ-4-support-signed-64-bit-integer-e64725e8",
+            "REQ-4-support-utf-8-text-values-3f18fad1",
+            "REQ-5-return-clear-db-check-or-c4bdd9af",
+            "REQ-5-return-clear-normal-operation-errors-c2e93c70",
+            "REQ-6-data-must-survive-process-restart-0471a233",
+            "REQ-6-store-data-in-a-disk-ad3ffc4e",
+            "REQ-7-create-index-must-create-disk-3b71a7dc",
+            "REQ-7-implement-integer-primary-key-as-9c698e08",
+            "REQ-7-insert-update-and-delete-must-997871f9",
+            "REQ-8-begin-commit-and-rollback-provide-44e7901f",
+            "REQ-8-committed-writes-survive-crash-and-35caf667",
+            "REQ-9-checkpoint-or-log-truncation-must-d633d286",
+            "REQ-9-provide-wal-or-equivalent-write-80297892",
+            "REQ-9-recovery-must-be-idempotent-and-300531dc"
+          ],
+          "launch_gates": [
+            "gate-v1-bench-docs-acceptance",
+            "gate-v1-cli-smoke",
+            "gate-v1-crash-testing",
+            "gate-v1-db-check-invariants",
+            "gate-v1-differential-property-tests",
+            "gate-v1-disk-page-storage",
+            "gate-v1-indexes",
+            "gate-v1-sql-schema-exec",
+            "gate-v1-transactions-wal-recovery"
+          ]
+        }
+      },
+      "feedback": [],
+      "repair": {
+        "attempted": false,
+        "changed": false,
+        "changes": [],
+        "summary": "No repair needed."
+      }
+    }
+  ],
+  "final_metrics": {
+    "objective_plan_gap_fit": {
+      "score": 3,
+      "rationale": "Candidate maps to both an objective metric and a current-plan gap.",
+      "evidence": [
+        "metric:metric-v1-durable-storage",
+        "gap:gap-v1-page-storage-record-format"
+      ]
+    },
+    "causal_evidence_strength": {
+      "score": 3,
+      "rationale": "Candidate has concrete evidence for the proposed intervention.",
+      "evidence": [
+        "Root Progress Projection: gate-v1-disk-page-storage는 open이며 REQ-6-store-data-in-a-disk-ad3ffc4e, REQ-6-data-must-survive-process-restart-0471a233, FAIL-6-reject-memory-only-dump-at-fd82a296, FAIL-6-reject-whole-database-file-rewrite-bebf73bb가 missing_requirement_ids로 남아 있다.",
+        "Root Progress Projection: gap-v1-page-storage-record-format은 stale_needs_recheck이며 blocker는 artifact contract digest does not match current artifact이다.",
+        "Gap Evidence Cache: task-2026-05-16-13-58-47-v1-page-storage-record-format는 SUCCESS 상태이며 src/storage.rs, tests/page_storage.rs, docs/file_format.md 증거가 연결되어 있다.",
+        "Active Managed Repo Snapshot: git_status는 clean이고 Queue Snapshot은 []이다.",
+        "Current Plan: gap-v1-page-storage-record-format은 metric-v1-durable-storage와 gate-v1-disk-page-storage에 직접 연결되어 있다.",
+        "src/storage.rs",
+        "tests/page_storage.rs",
+        "docs/file_format.md",
+        "docs/v1_acceptance.md",
+        "scripts/verify",
+        "specs/v1-page-storage-record-format/spec.md",
+        "specs/v1-page-storage-record-format/contracts.md",
+        "specs/v1-page-storage-record-format/final_review.md",
+        "PAGE_SIZE",
+        "PageStore",
+        "PageStore::open",
+        "PageStore::append_record",
+        "PageStore::read_records",
+        "append_record_to_file_with_cursor",
+        "read_page",
+        "write_page",
+        "StorageError::TruncatedFile",
+        "StorageError::TruncatedPage",
+        "StorageError::InvalidMagic",
+        "StorageError::UnsupportedVersion",
+        "StorageError::RecordTooLarge",
+        "StorageError::CorruptRecordLength",
+        "project_manager/tasks/tasks.json:150",
+        "project_manager/tasks/tasks.json:183",
+        "project_manager/tasks/tasks.json:187",
+        "project_manager/tasks/tasks.json:203",
+        "project_manager/tasks/task_status_events.jsonl:2",
+        "project_manager/tasks/task-2026-05-16-13-58-47-v1-page-storage-record-format/evidence/recovery_20260517_184449_page_storage_evidence/final-verification.json:3",
+        "specs/v1-page-storage-record-format/spec.md:101",
+        "specs/v1-page-storage-record-format/spec.md:112",
+        "specs/v1-page-storage-record-format/contracts.md:22",
+        "specs/v1-page-storage-record-format/final_review.md:1"
+      ]
+    },
+    "handoff_verifiability": {
+      "score": 3,
+      "rationale": "Expected delta and acceptance proof are explicit.",
+      "evidence": [
+        "tests/page_storage.rs 또는 동등한 black-box/focused test가 4096-byte 기본 page layout, page-level read/write abstraction, file header/page inspection을 검증한다.",
+        "restart 후 기존 record를 다시 읽는 deterministic test가 REQ-6-data-must-survive-process-restart-0471a233를 명시적으로 매핑한다.",
+        "memory-only dump-at-end 설계와 every-write full-file rewrite 설계를 거부할 수 있는 bounded mutation/file-inspection evidence가 FAIL-6 요구사항 2개를 명시적으로 매핑한다.",
+        "docs/file_format.md 또는 docs/v1_acceptance.md가 current-artifact requirement IDs와 검증 명령을 연결한다.",
+        "cargo test --test page_storage와 scripts/verify가 managed repo 기준으로 통과한다."
+      ]
+    }
+  },
+  "low_metrics": [],
+  "constraint_blockers": [],
+  "artifact_mapping": {
+    "source": "explicit_candidate",
+    "blocker": "",
+    "blocker_reason": "",
+    "resolved_requirement_ids": [
+      "REQ-6-store-data-in-a-disk-ad3ffc4e",
+      "REQ-6-data-must-survive-process-restart-0471a233",
+      "FAIL-6-reject-memory-only-dump-at-fd82a296",
+      "FAIL-6-reject-whole-database-file-rewrite-bebf73bb"
+    ],
+    "resolved_gates": [
+      "gate-v1-disk-page-storage"
+    ],
+    "explicit": {
+      "requirement_ids": [
+        "REQ-6-store-data-in-a-disk-ad3ffc4e",
+        "REQ-6-data-must-survive-process-restart-0471a233",
+        "FAIL-6-reject-memory-only-dump-at-fd82a296",
+        "FAIL-6-reject-whole-database-file-rewrite-bebf73bb"
+      ],
+      "launch_gates": [
+        "gate-v1-disk-page-storage"
+      ],
+      "valid_requirement_ids": [
+        "REQ-6-store-data-in-a-disk-ad3ffc4e",
+        "REQ-6-data-must-survive-process-restart-0471a233",
+        "FAIL-6-reject-memory-only-dump-at-fd82a296",
+        "FAIL-6-reject-whole-database-file-rewrite-bebf73bb"
+      ],
+      "valid_launch_gates": [
+        "gate-v1-disk-page-storage"
+      ],
+      "unknown_requirement_ids": [],
+      "unknown_launch_gates": [],
+      "resolved_requirement_ids": [
+        "REQ-6-store-data-in-a-disk-ad3ffc4e",
+        "REQ-6-data-must-survive-process-restart-0471a233",
+        "FAIL-6-reject-memory-only-dump-at-fd82a296",
+        "FAIL-6-reject-whole-database-file-rewrite-bebf73bb"
+      ],
+      "resolved_gates": [
+        "gate-v1-disk-page-storage"
+      ],
+      "present": true
+    },
+    "inferred": {
+      "current_plan_gap_id": "gap-v1-page-storage-record-format",
+      "launch_gates": [
+        "gate-v1-disk-page-storage"
+      ],
+      "requirement_ids": [
+        "REQ-6-store-data-in-a-disk-ad3ffc4e",
+        "REQ-6-data-must-survive-process-restart-0471a233",
+        "FAIL-6-reject-memory-only-dump-at-fd82a296",
+        "FAIL-6-reject-whole-database-file-rewrite-bebf73bb"
+      ],
+      "valid": true
+    },
+    "artifact_contract": {
+      "requirement_ids": [
+        "EVID-10-db-check-must-validate-page-195c4e72",
+        "EVID-11-crash-tests-must-recover-check-95f2685f",
+        "EVID-12-use-sqlite-as-differential-oracle-e5469b45",
+        "EVID-13-include-seeded-property-tests-for-60ca360c",
+        "EVID-15-bug-diary-must-record-bug-53b961eb",
+        "EVID-15-require-architecture-storage-format-index-a575878f",
+        "EVID-16-1-black-box-cli-smoke-must-bcfdb1ab",
+        "EVID-16-2-persistence-acceptance-must-prove-committed-0cfc3d80",
+        "EVID-16-3-transaction-atomicity-acceptance-must-cover-dce6b35c",
+        "EVID-16-4-crash-recovery-matrix-must-run-c3aeada6",
+        "EVID-16-5-differential-acceptance-must-compare-generated-0177412b",
+        "EVID-16-6-property-acceptance-must-use-reproducible-f7331be6",
+        "EVID-16-7-performance-acceptance-must-run-db-9901b652",
+        "EVID-7-validate-index-invariants-for-uniqueness-2d153f8e",
+        "FAIL-14-5-reject-every-write-full-file-5bc3a2a9",
+        "FAIL-14-5-reject-performance-evidence-where-indexed-0b2ffef1",
+        "FAIL-18-automatic-v1-failure-for-data-7dee7832",
+        "FAIL-18-automatic-v1-failure-for-table-30284a6c",
+        "FAIL-18-automatic-v1-failure-if-all-e69ba9f4",
+        "FAIL-18-automatic-v1-failure-if-crash-df0385e6",
+        "FAIL-18-automatic-v1-failure-if-implementation-814892ba",
+        "FAIL-18-automatic-v1-failure-if-tests-4fc9e7e4",
+        "FAIL-3-1-unsupported-sql-must-fail-with-68a3ee08",
+        "FAIL-3-3-join-group-by-having-aggregation-89789c06",
+        "FAIL-4-reject-null-values-because-null-7cff87ec",
+        "FAIL-5-syntax-errors-and-unsupported-sql-983b9754",
+        "FAIL-6-reject-memory-only-dump-at-fd82a296",
+        "FAIL-6-reject-whole-database-file-rewrite-bebf73bb",
+        "METRIC-14-1-benchmark-dataset-must-contain-100000-7052d6fb",
+        "METRIC-14-2-benchmark-suite-must-include-sequential-7da5205a",
+        "METRIC-14-3-performance-report-must-include-elapsed-eca58d49",
+        "METRIC-14-4-indexed-equality-lookup-must-be-609f5237",
+        "METRIC-14-4-recovery-must-be-proportional-to-8c0f9dd5",
+        "REQ-10-provide-db-init-db-exec-4ba947a9",
+        "REQ-11-run-workloads-in-a-child-1cc228f3",
+        "REQ-3-1-support-create-table-create-index-578fc989",
+        "REQ-3-2-support-equality-comparison-and-between-fcf162bb",
+        "REQ-4-support-signed-64-bit-integer-e64725e8",
+        "REQ-4-support-utf-8-text-values-3f18fad1",
+        "REQ-5-return-clear-db-check-or-c4bdd9af",
+        "REQ-5-return-clear-normal-operation-errors-c2e93c70",
+        "REQ-6-data-must-survive-process-restart-0471a233",
+        "REQ-6-store-data-in-a-disk-ad3ffc4e",
+        "REQ-7-create-index-must-create-disk-3b71a7dc",
+        "REQ-7-implement-integer-primary-key-as-9c698e08",
+        "REQ-7-insert-update-and-delete-must-997871f9",
+        "REQ-8-begin-commit-and-rollback-provide-44e7901f",
+        "REQ-8-committed-writes-survive-crash-and-35caf667",
+        "REQ-9-checkpoint-or-log-truncation-must-d633d286",
+        "REQ-9-provide-wal-or-equivalent-write-80297892",
+        "REQ-9-recovery-must-be-idempotent-and-300531dc"
+      ],
+      "launch_gates": [
+        "gate-v1-bench-docs-acceptance",
+        "gate-v1-cli-smoke",
+        "gate-v1-crash-testing",
+        "gate-v1-db-check-invariants",
+        "gate-v1-differential-property-tests",
+        "gate-v1-disk-page-storage",
+        "gate-v1-indexes",
+        "gate-v1-sql-schema-exec",
+        "gate-v1-transactions-wal-recovery"
+      ]
+    }
+  },
+  "repair_attempts": 0,
+  "final_disposition": "ready_for_handoff",
+  "evidence_gap_type": "",
+  "confidence_gap_reason": "",
+  "research_question": "",
+  "hypothesis_lineage": {
+    "objective_metric_id": "metric-v1-durable-storage",
+    "current_plan_gap_id": "gap-v1-page-storage-record-format",
+    "target_boundary": "managed_repo"
+  },
+  "repairability": {
+    "repairable": false,
+    "reason": "already_ready",
+    "allowed_findings": [],
+    "blocked_findings": []
+  }
+}
