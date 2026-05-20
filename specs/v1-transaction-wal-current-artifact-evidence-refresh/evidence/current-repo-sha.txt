@@ -1,38 +1,10 @@
 command: git rev-parse HEAD
 exit_code: 0
-stdout: bed51c0d35f392458840870401f304a157a3b005
+stdout: bc45346ff9eb92e3f2585f14f6a694e10bce0918
 
 command: git status --short
 exit_code: 0
 stdout:
-A  specs/v1-transaction-wal-current-artifact-evidence-refresh/analysis_report.md
-A  specs/v1-transaction-wal-current-artifact-evidence-refresh/code_review.md
-A  specs/v1-transaction-wal-current-artifact-evidence-refresh/contracts.md
-A  specs/v1-transaction-wal-current-artifact-evidence-refresh/design.md
-A  specs/v1-transaction-wal-current-artifact-evidence-refresh/development_state.md
-A  specs/v1-transaction-wal-current-artifact-evidence-refresh/evidence/command-log.md
-A  specs/v1-transaction-wal-current-artifact-evidence-refresh/evidence/crash-matrix-log.md
-A  specs/v1-transaction-wal-current-artifact-evidence-refresh/evidence/current-repo-sha.txt
-A  specs/v1-transaction-wal-current-artifact-evidence-refresh/evidence/requirement-evidence.md
-A  specs/v1-transaction-wal-current-artifact-evidence-refresh/evidence/wal-sidecar-smoke.md
-A  specs/v1-transaction-wal-current-artifact-evidence-refresh/final_review.md
-A  specs/v1-transaction-wal-current-artifact-evidence-refresh/impl_brake_review.md
-A  specs/v1-transaction-wal-current-artifact-evidence-refresh/impl_review.md
-A  specs/v1-transaction-wal-current-artifact-evidence-refresh/plan.md
-A  specs/v1-transaction-wal-current-artifact-evidence-refresh/qa_mapping.md
-A  specs/v1-transaction-wal-current-artifact-evidence-refresh/qa_prep_review.history.md
-A  specs/v1-transaction-wal-current-artifact-evidence-refresh/qa_prep_review.md
-A  specs/v1-transaction-wal-current-artifact-evidence-refresh/readiness-preflight.md
-A  specs/v1-transaction-wal-current-artifact-evidence-refresh/readiness.md
-A  specs/v1-transaction-wal-current-artifact-evidence-refresh/research.md
-A  specs/v1-transaction-wal-current-artifact-evidence-refresh/review_loop/code_context.md
-A  specs/v1-transaction-wal-current-artifact-evidence-refresh/review_loop/design.md
-A  specs/v1-transaction-wal-current-artifact-evidence-refresh/review_loop/metric_loop.json
-A  specs/v1-transaction-wal-current-artifact-evidence-refresh/review_loop/metric_loop_evidence.md
-A  specs/v1-transaction-wal-current-artifact-evidence-refresh/spec-progress.md
-A  specs/v1-transaction-wal-current-artifact-evidence-refresh/spec.md
-A  specs/v1-transaction-wal-current-artifact-evidence-refresh/tasks.md
-A  specs/v1-transaction-wal-current-artifact-evidence-refresh/verify_evidence_contract.sh
 
 required_file_presence:
 
