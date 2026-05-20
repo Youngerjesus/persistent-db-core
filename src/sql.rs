@@ -20,6 +20,7 @@ pub enum SqlError {
     Malformed(String),
     Semantic { message: String, hint: &'static str },
     InvalidStorageRecord,
+    InvalidStorageDuplicatePrimaryKey { table: String, key: i64 },
     Storage(StorageError),
 }
 
@@ -251,24 +252,65 @@ struct Database {
     tables: Vec<Table>,
 }
 
+enum RecordLoadError {
+    Sql(SqlError),
+    CheckLabel(&'static str),
+}
+
+impl RecordLoadError {
+    fn from_primary_index_error(error: SqlError) -> Self {
+        match error {
+            SqlError::InvalidStorageDuplicatePrimaryKey { .. } => RecordLoadError::Sql(error),
+            _ => RecordLoadError::CheckLabel("primary index"),
+        }
+    }
+
+    fn from_loaded_row_error(error: SqlError) -> Self {
+        match error {
+            SqlError::InvalidStorageDuplicatePrimaryKey { .. } => RecordLoadError::Sql(error),
+            _ => RecordLoadError::CheckLabel("catalog/record invariant"),
+        }
+    }
+
+    fn check_label(&self) -> &'static str {
+        match self {
+            RecordLoadError::Sql(SqlError::InvalidStorageDuplicatePrimaryKey { .. }) => {
+                "primary index"
+            }
+            RecordLoadError::Sql(_) => "catalog/record invariant",
+            RecordLoadError::CheckLabel(label) => label,
+        }
+    }
+}
+
 impl Database {
     fn from_records(records: Vec<Vec<u8>>) -> Result<Self, SqlError> {
-        Self::from_records_with_check_label(records).map_err(|_| SqlError::InvalidStorageRecord)
+        Self::from_records_for_load(records).map_err(|error| match error {
+            RecordLoadError::Sql(error) => error,
+            RecordLoadError::CheckLabel(_) => SqlError::InvalidStorageRecord,
+        })
     }
 
     fn from_records_with_check_label(records: Vec<Vec<u8>>) -> Result<Self, &'static str> {
+        Self::from_records_for_load(records).map_err(|error| error.check_label())
+    }
+
+    fn from_records_for_load(records: Vec<Vec<u8>>) -> Result<Self, RecordLoadError> {
         let mut database = Database::default();
         let mut pending_entries: BTreeMap<(String, u64), Vec<EmbeddedIndexEntry>> = BTreeMap::new();
         let mut index_names = Vec::<String>::new();
         let mut committed_index_builds = Vec::<(String, u64)>::new();
 
         for record in records {
-            match decode_record(&record).map_err(|_| "storage record readability")? {
+            match decode_record(&record)
+                .map_err(|_| RecordLoadError::CheckLabel("storage record readability"))?
+            {
                 LogicalRecord::Catalog { table, columns } => {
-                    let primary_key_column = validate_catalog_record_invariants(&table, &columns)
-                        .map_err(|_| "catalog/record invariant")?;
+                    let primary_key_column =
+                        validate_catalog_record_invariants(&table, &columns)
+                            .map_err(|_| RecordLoadError::CheckLabel("catalog/record invariant"))?;
                     if database.find_table(&table).is_some() {
-                        return Err("catalog/record invariant");
+                        return Err(RecordLoadError::CheckLabel("catalog/record invariant"));
                     }
                     database.tables.push(Table {
                         name: table,
@@ -282,15 +324,16 @@ impl Database {
                 LogicalRecord::Row { table, values } => {
                     let table = database
                         .find_table_mut(&table)
-                        .ok_or("catalog/record invariant")?;
+                        .ok_or(RecordLoadError::CheckLabel("catalog/record invariant"))?;
                     if !table.secondary_indexes.is_empty() {
-                        return Err("secondary index");
+                        return Err(RecordLoadError::CheckLabel("secondary index"));
                     }
                     validate_values_for_table(table, &values)
-                        .map_err(|_| "catalog/record invariant")?;
-                    validate_primary_key_available(table, &values).map_err(|_| "primary index")?;
+                        .map_err(|_| RecordLoadError::CheckLabel("catalog/record invariant"))?;
+                    validate_primary_key_available(table, &values)
+                        .map_err(RecordLoadError::from_primary_index_error)?;
                     append_loaded_row_after_validation(table, values)
-                        .map_err(|_| "catalog/record invariant")?;
+                        .map_err(RecordLoadError::from_loaded_row_error)?;
                 }
                 LogicalRecord::SecondaryIndexEntry {
                     build_id,
@@ -321,22 +364,22 @@ impl Database {
                 } => {
                     let index_key = normalize_identifier(&index_name);
                     if index_names.iter().any(|existing| existing == &index_key) {
-                        return Err("secondary index");
+                        return Err(RecordLoadError::CheckLabel("secondary index"));
                     }
                     let table = database
                         .find_table_mut(&table_name)
-                        .ok_or("secondary index")?;
+                        .ok_or(RecordLoadError::CheckLabel("secondary index"))?;
                     let column_index = indexed_column as usize;
                     let Some(column) = table.columns.get(column_index) else {
-                        return Err("secondary index");
+                        return Err(RecordLoadError::CheckLabel("secondary index"));
                     };
                     if column.column_type != ColumnType::Int {
-                        return Err("secondary index");
+                        return Err(RecordLoadError::CheckLabel("secondary index"));
                     }
                     if tie_break_mode == TieBreakMode::PrimaryKey
                         && table.primary_key_column.is_none()
                     {
-                        return Err("secondary index");
+                        return Err(RecordLoadError::CheckLabel("secondary index"));
                     }
 
                     let index_build_key = (index_key.clone(), build_id);
@@ -348,7 +391,8 @@ impl Database {
                         tie_break_mode,
                         index: SecondaryIndex::new(),
                     };
-                    validate_and_insert_entries(table, &mut state, &entries)?;
+                    validate_and_insert_entries(table, &mut state, &entries)
+                        .map_err(RecordLoadError::CheckLabel)?;
                     table.secondary_indexes.push(state);
                     index_names.push(index_key);
                     committed_index_builds.push(index_build_key);
@@ -360,18 +404,20 @@ impl Database {
                 } => {
                     let table = database
                         .find_table_mut(&table)
-                        .ok_or("catalog/record invariant")?;
+                        .ok_or(RecordLoadError::CheckLabel("catalog/record invariant"))?;
                     if table.secondary_indexes.is_empty() {
-                        return Err("secondary index");
+                        return Err(RecordLoadError::CheckLabel("secondary index"));
                     }
                     validate_values_for_table(table, &values)
-                        .map_err(|_| "catalog/record invariant")?;
-                    validate_primary_key_available(table, &values).map_err(|_| "primary index")?;
+                        .map_err(|_| RecordLoadError::CheckLabel("catalog/record invariant"))?;
+                    validate_primary_key_available(table, &values)
+                        .map_err(RecordLoadError::from_primary_index_error)?;
 
                     let row_position = table.rows.len();
-                    let expected_entries = expected_entries_for_row(table, &values, row_position)?;
+                    let expected_entries = expected_entries_for_row(table, &values, row_position)
+                        .map_err(RecordLoadError::CheckLabel)?;
                     if canonical_entries(&entries) != canonical_entries(&expected_entries) {
-                        return Err("secondary index");
+                        return Err(RecordLoadError::CheckLabel("secondary index"));
                     }
 
                     for entry in &expected_entries {
@@ -382,14 +428,14 @@ impl Database {
                                 index.build_id == entry.build_id
                                     && index.name.eq_ignore_ascii_case(&entry.index_name)
                             })
-                            .ok_or("secondary index")?;
+                            .ok_or(RecordLoadError::CheckLabel("secondary index"))?;
                         index
                             .index
                             .insert(entry.indexed_key, entry.tie_break, row_position)
-                            .map_err(|_| "secondary index")?;
+                            .map_err(|_| RecordLoadError::CheckLabel("secondary index"))?;
                     }
                     append_loaded_row_after_validation(table, values)
-                        .map_err(|_| "catalog/record invariant")?;
+                        .map_err(RecordLoadError::from_loaded_row_error)?;
                 }
                 LogicalRecord::UpdateRow {
                     table,
@@ -399,14 +445,14 @@ impl Database {
                 } => {
                     let table = database
                         .find_table_mut(&table)
-                        .ok_or("catalog/record invariant")?;
+                        .ok_or(RecordLoadError::CheckLabel("catalog/record invariant"))?;
                     apply_loaded_update_after_validation(
                         table,
                         row_position as usize,
                         values,
                         entries,
                     )
-                    .map_err(|_| "secondary index")?;
+                    .map_err(|_| RecordLoadError::CheckLabel("secondary index"))?;
                 }
                 LogicalRecord::DeleteRow {
                     table,
@@ -414,9 +460,9 @@ impl Database {
                 } => {
                     let table = database
                         .find_table_mut(&table)
-                        .ok_or("catalog/record invariant")?;
+                        .ok_or(RecordLoadError::CheckLabel("catalog/record invariant"))?;
                     apply_loaded_delete_after_validation(table, row_position as usize)
-                        .map_err(|_| "secondary index")?;
+                        .map_err(|_| RecordLoadError::CheckLabel("secondary index"))?;
                 }
             }
         }
@@ -426,10 +472,10 @@ impl Database {
                 .iter()
                 .any(|committed| committed == key)
         }) {
-            return Err("secondary index");
+            return Err(RecordLoadError::CheckLabel("secondary index"));
         }
 
-        validate_secondary_indexes(&database)?;
+        validate_secondary_indexes(&database).map_err(RecordLoadError::CheckLabel)?;
         Ok(database)
     }
 
@@ -1176,7 +1222,10 @@ fn append_loaded_row_after_validation(
         table
             .primary_index
             .insert(key, table.rows.len())
-            .map_err(|_| SqlError::InvalidStorageRecord)?;
+            .map_err(|_| SqlError::InvalidStorageDuplicatePrimaryKey {
+                table: table.name.clone(),
+                key,
+            })?;
     }
     table.rows.push(Some(values));
     Ok(())
@@ -1351,7 +1400,10 @@ fn validate_primary_key_available(table: &Table, values: &[Value]) -> Result<(),
             return Err(SqlError::InvalidStorageRecord);
         };
         if table.primary_index.get(key).is_some() {
-            return Err(SqlError::InvalidStorageRecord);
+            return Err(SqlError::InvalidStorageDuplicatePrimaryKey {
+                table: table.name.clone(),
+                key,
+            });
         }
     }
     Ok(())

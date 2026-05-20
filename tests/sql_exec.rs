@@ -5,6 +5,7 @@ use std::process::{Command, Output};
 
 const SQL_RECORD_PREFIX: &[u8; 8] = b"PDBSQL1\0";
 const INVALID_SQL_STORAGE_STDERR: &str = "error: invalid SQL storage record: unknown record tag\nhint: run against a database file created by this SQL contract or restore from a valid backup.\n";
+const DUPLICATE_PRIMARY_KEY_INVALID_STORAGE_STDERR: &str = "error: invalid SQL storage record: duplicate primary key for table users: 2\nhint: primary key values must be unique in persisted SQL storage.\n";
 
 fn db(args: &[&str]) -> Output {
     Command::new(env!("CARGO_BIN_EXE_db"))
@@ -93,6 +94,14 @@ fn append_fixture_record(path: &Path, payload: &[u8]) {
 }
 
 fn catalog_record(table: &str, columns: &[(&str, u8)]) -> Vec<u8> {
+    catalog_record_with_primary_key(table, columns, None)
+}
+
+fn catalog_record_with_primary_key(
+    table: &str,
+    columns: &[(&str, u8)],
+    primary_key_column: Option<u16>,
+) -> Vec<u8> {
     let mut record = Vec::new();
     record.extend_from_slice(SQL_RECORD_PREFIX);
     record.push(b'C');
@@ -101,6 +110,10 @@ fn catalog_record(table: &str, columns: &[(&str, u8)]) -> Vec<u8> {
     for (name, column_type) in columns {
         write_string_u16(&mut record, name);
         record.push(*column_type);
+    }
+    if let Some(primary_key_column) = primary_key_column {
+        record.push(b'P');
+        record.extend_from_slice(&primary_key_column.to_le_bytes());
     }
     record
 }
@@ -465,6 +478,45 @@ fn primary_key_exact_lookup_outputs_matching_row_after_reopen() {
 }
 
 #[test]
+fn primary_key_combined_contract_input_outputs_ordered_scan_lookup_and_missing_header() {
+    let path = temp_db_path(
+        "primary_key_combined_contract_input_outputs_ordered_scan_lookup_and_missing_header",
+    );
+
+    assert_exec(
+        &path,
+        "CREATE TABLE users (id INT PRIMARY KEY, name TEXT); INSERT INTO users VALUES (2, 'bea'); INSERT INTO users VALUES (1, 'ada'); INSERT INTO users VALUES (3, 'cal'); SELECT * FROM users; SELECT * FROM users WHERE id = 2; SELECT * FROM users WHERE id = 9;",
+        0,
+        "id|name\n1|ada\n2|bea\n3|cal\nid|name\n2|bea\nid|name\n",
+        "",
+    );
+
+    cleanup(&path);
+}
+
+#[test]
+fn primary_key_same_path_reopen_preserves_ordered_scan_and_exact_lookup() {
+    let path = temp_db_path("primary_key_same_path_reopen_preserves_ordered_scan_and_exact_lookup");
+
+    assert_exec(
+        &path,
+        "CREATE TABLE users (id INT PRIMARY KEY, name TEXT); INSERT INTO users VALUES (2, 'bea'); INSERT INTO users VALUES (1, 'ada'); INSERT INTO users VALUES (3, 'cal');",
+        0,
+        "",
+        "",
+    );
+    assert_exec(
+        &path,
+        "SELECT * FROM users; SELECT * FROM users WHERE id = 2;",
+        0,
+        "id|name\n1|ada\n2|bea\n3|cal\nid|name\n2|bea\n",
+        "",
+    );
+
+    cleanup(&path);
+}
+
+#[test]
 fn integer_alias_primary_key_supports_section14_benchmark_schema() {
     let path = temp_db_path("integer_alias_primary_key_supports_section14_benchmark_schema");
 
@@ -521,6 +573,58 @@ fn primary_key_duplicate_insert_fails_before_appending_row() {
         "error: SQL semantic error: duplicate primary key for table users: 2\nhint: primary key values must be unique.\n",
     );
     assert_exec(&path, "SELECT * FROM users;", 0, "id|name\n2|bea\n", "");
+
+    cleanup(&path);
+}
+
+#[test]
+fn primary_key_duplicate_insert_in_new_process_keeps_existing_row_unchanged() {
+    let path =
+        temp_db_path("primary_key_duplicate_insert_in_new_process_keeps_existing_row_unchanged");
+
+    assert_exec(
+        &path,
+        "CREATE TABLE users (id INT PRIMARY KEY, name TEXT); INSERT INTO users VALUES (2, 'bea');",
+        0,
+        "",
+        "",
+    );
+    assert_exec(
+        &path,
+        "INSERT INTO users VALUES (2, 'dupe');",
+        2,
+        "",
+        "error: SQL semantic error: duplicate primary key for table users: 2\nhint: primary key values must be unique.\n",
+    );
+    assert_exec(
+        &path,
+        "SELECT * FROM users WHERE id = 2;",
+        0,
+        "id|name\n2|bea\n",
+        "",
+    );
+
+    cleanup(&path);
+}
+
+#[test]
+fn primary_key_valid_persisted_duplicate_row_fixture_fails_on_reopen() {
+    let path = temp_db_path("primary_key_valid_persisted_duplicate_row_fixture_fails_on_reopen");
+
+    append_fixture_record(
+        &path,
+        &catalog_record_with_primary_key("users", &[("id", b'I'), ("name", b'T')], Some(0)),
+    );
+    append_fixture_record(&path, &row_record("users", &[(b'I', "2"), (b'T', "bea")]));
+    append_fixture_record(&path, &row_record("users", &[(b'I', "2"), (b'T', "dupe")]));
+
+    assert_exec(
+        &path,
+        "SELECT * FROM users;",
+        1,
+        "",
+        DUPLICATE_PRIMARY_KEY_INVALID_STORAGE_STDERR,
+    );
 
     cleanup(&path);
 }

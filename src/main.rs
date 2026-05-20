@@ -111,6 +111,13 @@ fn exit_with_sql_error(error: SqlError) -> ! {
             );
             process::exit(1);
         }
+        SqlError::InvalidStorageDuplicatePrimaryKey { table, key } => {
+            eprintln!(
+                "error: invalid SQL storage record: duplicate primary key for table {table}: {key}"
+            );
+            eprintln!("hint: primary key values must be unique in persisted SQL storage.");
+            process::exit(1);
+        }
         SqlError::Storage(error) => {
             eprintln!("error: storage error: {error:?}");
             eprintln!("hint: database file must use the documented V1 page format.");
