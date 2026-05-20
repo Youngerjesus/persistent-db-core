@@ -85,4 +85,3 @@
 - Keep changes scoped to primary-index current-artifact evidence.
 - Preserve stable CLI stdout, stderr, and exit codes exactly as contracted.
 - The scheduler terminal result is supporting evidence only; `qa_mapping.md` and `final_review.md` remain required evidence paths.
-

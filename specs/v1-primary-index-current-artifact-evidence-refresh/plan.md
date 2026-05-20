@@ -86,4 +86,3 @@ Refresh current-artifact evidence for `gate-v1-indexes` by proving the existing 
 - Stop and report a blocker if implementation requires changing `spec.md`, `contracts.md`, `ssot/`, or `policies/`.
 - Stop and report a blocker if the approved contract conflicts with current repo behavior in a way that cannot be repaired inside the intended primary-index evidence scope.
 - Escalate if a second recovery attempt becomes necessary.
-

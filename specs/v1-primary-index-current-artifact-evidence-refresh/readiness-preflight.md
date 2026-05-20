@@ -27,4 +27,3 @@ Verdict: PASS
 
 ## Decision
 Proceed with derived planning artifacts. Do not edit `spec.md` or `contracts.md`.
-

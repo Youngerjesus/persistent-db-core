@@ -35,4 +35,3 @@ What is the minimum implementation evidence delta needed to refresh `gate-v1-ind
 - Current tests may pass older primary-index behavior while missing the exact combined SQL input, exact stderr, or valid duplicate-row reopen fixture required by this package.
 - The persisted duplicate fixture may currently report a generic invalid-storage error; implementation must make the failure label/message match the contract if the focused test fails.
 - `docs/v1_acceptance.md` must not imply unrelated index requirements are complete.
-

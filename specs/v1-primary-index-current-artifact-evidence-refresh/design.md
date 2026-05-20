@@ -101,4 +101,3 @@ The script should be executable and deterministic. It supplements but does not r
 - No persisted format change is intended.
 - No new public CLI syntax is intended.
 - Existing CLI output and documented error strings remain stable unless a focused test exposes a mismatch with the approved current contract; any repair must preserve the contract text exactly.
-

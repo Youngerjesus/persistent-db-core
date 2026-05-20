@@ -19,4 +19,3 @@
 | Subtasks | passed | tasks.md | Complex test/script/evidence work decomposed. |
 | Analyze | passed | analysis_report.md | Cross-artifact scan found no canonical blocker. |
 | Final readiness | go | readiness.md | Ready for implementation phase; no SSOT/policy edits required. |
-

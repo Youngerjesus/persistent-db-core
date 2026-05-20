@@ -37,4 +37,3 @@ Implementation can begin in the next phase with the following scope:
 
 ## Decision
 The package is implementation-ready. `spec.md` and `contracts.md` were adopted without rewrite.
-
