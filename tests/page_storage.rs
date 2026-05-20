@@ -1,4 +1,4 @@
-use persistent_db_core::storage::{PageStore, StorageError};
+use persistent_db_core::storage::{PageFileWrite, PageStore, StorageError};
 use std::fs::{self, OpenOptions};
 use std::io::{Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
@@ -9,6 +9,8 @@ const PAGE_MAGIC: &[u8; 4] = b"PDPG";
 const FORMAT_VERSION_OFFSET: usize = 8;
 const PAGE_COUNT_OFFSET: usize = 16;
 const DATA_PAGE_HEADER_SIZE: usize = 16;
+const DATA_PAGE_USED_OFFSET: usize = PAGE_SIZE + 8;
+const DATA_PAGE_RECORD_COUNT_OFFSET: usize = PAGE_SIZE + 10;
 const FIRST_RECORD_LENGTH_OFFSET: u64 = (PAGE_SIZE + DATA_PAGE_HEADER_SIZE) as u64;
 
 fn temp_db_path(test_name: &str) -> PathBuf {
@@ -71,6 +73,32 @@ fn write_header_and_data_page(path: &PathBuf) {
         .expect("fixture should open")
         .write_all(&page)
         .expect("data page fixture should be written");
+}
+
+fn read_u16(bytes: &[u8], offset: usize) -> u16 {
+    u16::from_le_bytes([bytes[offset], bytes[offset + 1]])
+}
+
+fn read_u32(bytes: &[u8], offset: usize) -> u32 {
+    u32::from_le_bytes([
+        bytes[offset],
+        bytes[offset + 1],
+        bytes[offset + 2],
+        bytes[offset + 3],
+    ])
+}
+
+fn read_u64(bytes: &[u8], offset: usize) -> u64 {
+    u64::from_le_bytes([
+        bytes[offset],
+        bytes[offset + 1],
+        bytes[offset + 2],
+        bytes[offset + 3],
+        bytes[offset + 4],
+        bytes[offset + 5],
+        bytes[offset + 6],
+        bytes[offset + 7],
+    ])
 }
 
 #[test]
@@ -271,4 +299,183 @@ fn corrupt_record_length_returns_error() {
 
     cleanup(&path);
     assert_storage_error(result, StorageError::CorruptRecordLength);
+}
+
+#[test]
+fn qa_scaffold_req_6_store_data_in_disk_current_artifact_layout_evidence() {
+    // REQ-6-store-data-in-a-disk-ad3ffc4e
+    let path = temp_db_path("qa_req_6_layout_current_artifact_evidence");
+
+    let result = (|| {
+        let payload = b"current-artifact-layout";
+        let mut store = PageStore::open(&path)?;
+        store.append_record(payload)?;
+
+        let bytes = fs::read(&path).expect("page file should be readable after append");
+        assert_eq!(PAGE_SIZE * 2, bytes.len());
+        assert_eq!(0, bytes.len() % PAGE_SIZE);
+        assert_eq!(FILE_MAGIC, &bytes[0..8]);
+        assert_eq!(1, read_u16(&bytes, FORMAT_VERSION_OFFSET));
+        assert_eq!(PAGE_SIZE as u16, read_u16(&bytes, 10));
+        assert_eq!(PAGE_SIZE as u32, read_u32(&bytes, 12));
+        assert_eq!(2, read_u64(&bytes, PAGE_COUNT_OFFSET));
+
+        assert_eq!(PAGE_MAGIC, &bytes[PAGE_SIZE..PAGE_SIZE + 4]);
+        assert_eq!(1, read_u16(&bytes, PAGE_SIZE + 4));
+        assert_eq!(
+            DATA_PAGE_HEADER_SIZE as u16,
+            read_u16(&bytes, PAGE_SIZE + 6)
+        );
+        assert_eq!(
+            (DATA_PAGE_HEADER_SIZE + 4 + payload.len()) as u16,
+            read_u16(&bytes, DATA_PAGE_USED_OFFSET)
+        );
+        assert_eq!(1, read_u16(&bytes, DATA_PAGE_RECORD_COUNT_OFFSET));
+        assert_eq!(
+            payload.len() as u32,
+            read_u32(&bytes, FIRST_RECORD_LENGTH_OFFSET as usize)
+        );
+        let payload_start = FIRST_RECORD_LENGTH_OFFSET as usize + 4;
+        assert_eq!(
+            payload,
+            &bytes[payload_start..payload_start + payload.len()]
+        );
+
+        Ok::<(), StorageError>(())
+    })();
+
+    cleanup(&path);
+    result.expect("current-artifact page layout evidence should pass");
+}
+
+#[test]
+fn qa_scaffold_req_6_restart_durability_current_artifact_evidence() {
+    // REQ-6-data-must-survive-process-restart-0471a233
+    let path = temp_db_path("qa_req_6_restart_current_artifact_evidence");
+
+    let result = (|| {
+        let expected = vec![
+            b"restart-alpha".to_vec(),
+            b"restart-beta".to_vec(),
+            vec![0x00, 0x10, 0xff],
+        ];
+        {
+            let mut store = PageStore::open(&path)?;
+            for payload in &expected {
+                store.append_record(payload)?;
+            }
+        }
+        let bytes_after_drop = fs::read(&path).expect("page file should exist after drop");
+
+        let mut reopened = PageStore::open(&path)?;
+        assert_eq!(expected, reopened.read_records()?);
+        assert_eq!(
+            bytes_after_drop,
+            fs::read(&path).expect("reopen/read should not duplicate or rewrite records")
+        );
+
+        Ok::<(), StorageError>(())
+    })();
+
+    cleanup(&path);
+    result.expect("current-artifact restart durability evidence should pass");
+}
+
+#[test]
+fn qa_scaffold_fail_6_reject_memory_only_dump_current_artifact_evidence() {
+    // FAIL-6-reject-memory-only-dump-at-fd82a296
+    let path = temp_db_path("qa_fail_6_memory_only_dump_current_artifact_evidence");
+
+    let result = (|| {
+        let payload = b"visible-before-drop";
+        let mut store = PageStore::open(&path)?;
+        store.append_record(payload)?;
+
+        let bytes_while_live =
+            fs::read(&path).expect("page file should be readable while PageStore is live");
+        let payload_start = FIRST_RECORD_LENGTH_OFFSET as usize + 4;
+        assert_eq!(PAGE_MAGIC, &bytes_while_live[PAGE_SIZE..PAGE_SIZE + 4]);
+        assert_eq!(
+            payload.len() as u32,
+            read_u32(&bytes_while_live, FIRST_RECORD_LENGTH_OFFSET as usize)
+        );
+        assert_eq!(
+            payload,
+            &bytes_while_live[payload_start..payload_start + payload.len()]
+        );
+        assert_eq!(vec![payload.to_vec()], store.read_records()?);
+
+        Ok::<(), StorageError>(())
+    })();
+
+    cleanup(&path);
+    result.expect("current-artifact memory-only rejection evidence should pass");
+}
+
+#[test]
+fn qa_scaffold_fail_6_reject_whole_file_rewrite_current_artifact_evidence() {
+    // FAIL-6-reject-whole-database-file-rewrite-bebf73bb
+    let path = temp_db_path("qa_fail_6_full_file_rewrite_current_artifact_evidence");
+
+    let result = (|| {
+        let first = b"stable-first-record";
+        let second = b"bounded-active-page-append";
+        let mut store = PageStore::open(&path)?;
+        store.append_record(first)?;
+        let before = fs::read(&path).expect("page file should be readable before second append");
+        let before_used = read_u16(&before, DATA_PAGE_USED_OFFSET) as usize;
+        assert_eq!(PAGE_SIZE * 2, before.len());
+        assert_eq!(2, read_u64(&before, PAGE_COUNT_OFFSET));
+
+        let audit = store.append_record_with_write_audit_for_test(second)?;
+        let after = fs::read(&path).expect("page file should be readable after second append");
+        let after_used = read_u16(&after, DATA_PAGE_USED_OFFSET) as usize;
+        let expected_after_used = before_used + 4 + second.len();
+
+        assert_eq!(
+            vec![PageFileWrite {
+                offset: PAGE_SIZE as u64,
+                len: PAGE_SIZE,
+            }],
+            audit.page_file_writes,
+            "same-page append should write exactly the active data page and not rewrite page 0 or the whole database file"
+        );
+        assert_eq!(before.len(), after.len());
+        assert_eq!(2, read_u64(&after, PAGE_COUNT_OFFSET));
+        assert_eq!(&before[0..PAGE_SIZE], &after[0..PAGE_SIZE]);
+        assert_eq!(
+            &before[PAGE_SIZE..PAGE_SIZE + 8],
+            &after[PAGE_SIZE..PAGE_SIZE + 8]
+        );
+        assert_eq!(
+            &before[PAGE_SIZE + 12..PAGE_SIZE + before_used],
+            &after[PAGE_SIZE + 12..PAGE_SIZE + before_used]
+        );
+        assert_eq!(expected_after_used, after_used);
+        assert_eq!(1, read_u16(&before, DATA_PAGE_RECORD_COUNT_OFFSET));
+        assert_eq!(2, read_u16(&after, DATA_PAGE_RECORD_COUNT_OFFSET));
+        assert_eq!(
+            second.len() as u32,
+            read_u32(&after, PAGE_SIZE + before_used)
+        );
+        assert_eq!(
+            second,
+            &after[PAGE_SIZE + before_used + 4..PAGE_SIZE + expected_after_used]
+        );
+        assert_eq!(
+            &before[PAGE_SIZE + before_used..PAGE_SIZE + before_used + 4],
+            &[0, 0, 0, 0],
+            "pre-append active region should be empty before the bounded append"
+        );
+        assert_eq!(
+            &before[PAGE_SIZE + expected_after_used..],
+            &after[PAGE_SIZE + expected_after_used..],
+            "suffix after the appended record should remain the same zero-filled capacity"
+        );
+
+        Ok::<(), StorageError>(())
+    })();
+
+    cleanup(&path);
+    result.expect("current-artifact full-file rewrite rejection evidence should pass");
 }

@@ -54,6 +54,17 @@ pub struct CheckStorageSnapshot {
     pub record_count: u64,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PageFileWrite {
+    pub offset: u64,
+    pub len: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PageAppendWriteAudit {
+    pub page_file_writes: Vec<PageFileWrite>,
+}
+
 impl PageStore {
     pub fn open(path: impl AsRef<Path>) -> Result<Self, StorageError> {
         let path = path.as_ref().to_path_buf();
@@ -87,6 +98,25 @@ impl PageStore {
     }
 
     pub fn append_record(&mut self, payload: &[u8]) -> Result<(), StorageError> {
+        self.append_record_internal(payload, None)
+    }
+
+    pub fn append_record_with_write_audit_for_test(
+        &mut self,
+        payload: &[u8],
+    ) -> Result<PageAppendWriteAudit, StorageError> {
+        let mut audit = PageAppendWriteAudit {
+            page_file_writes: Vec::new(),
+        };
+        self.append_record_internal(payload, Some(&mut audit))?;
+        Ok(audit)
+    }
+
+    fn append_record_internal(
+        &mut self,
+        payload: &[u8],
+        audit: Option<&mut PageAppendWriteAudit>,
+    ) -> Result<(), StorageError> {
         if payload.len() > max_record_payload_len() {
             return Err(StorageError::RecordTooLarge);
         }
@@ -103,6 +133,7 @@ impl PageStore {
             &mut self.last_page_used,
             &mut self.last_page_record_count,
             payload,
+            audit,
         )?;
         self.next_wal_frame_id = self
             .next_wal_frame_id
@@ -273,6 +304,7 @@ fn append_record_to_file_with_cursor(
     last_page_used: &mut usize,
     last_page_record_count: &mut u16,
     payload: &[u8],
+    mut audit: Option<&mut PageAppendWriteAudit>,
 ) -> Result<(), StorageError> {
     if payload.len() > max_record_payload_len() {
         return Err(StorageError::RecordTooLarge);
@@ -281,20 +313,20 @@ fn append_record_to_file_with_cursor(
     let mut file = OpenOptions::new().read(true).write(true).open(path)?;
 
     if *page_count == 1 {
-        append_empty_data_page(&mut file)?;
+        append_empty_data_page(&mut file, audit.as_deref_mut())?;
         *page_count = 2;
         *last_page_used = DATA_PAGE_HEADER_SIZE;
         *last_page_record_count = 0;
-        write_page_count(&mut file, *page_count)?;
+        write_page_count(&mut file, *page_count, audit.as_deref_mut())?;
     }
 
     let record_size = RECORD_LENGTH_SIZE + payload.len();
     if *last_page_used + record_size > PAGE_SIZE {
-        append_empty_data_page(&mut file)?;
+        append_empty_data_page(&mut file, audit.as_deref_mut())?;
         *page_count = page_count.checked_add(1).ok_or(StorageError::Io)?;
         *last_page_used = DATA_PAGE_HEADER_SIZE;
         *last_page_record_count = 0;
-        write_page_count(&mut file, *page_count)?;
+        write_page_count(&mut file, *page_count, audit.as_deref_mut())?;
     }
 
     if *last_page_used + record_size > PAGE_SIZE {
@@ -317,7 +349,7 @@ fn append_record_to_file_with_cursor(
     page[DATA_PAGE_RECORD_COUNT_OFFSET..DATA_PAGE_RECORD_COUNT_OFFSET + 2]
         .copy_from_slice(&last_page_record_count.to_le_bytes());
 
-    write_page(&mut file, page_index, &page)?;
+    write_page(&mut file, page_index, &page, audit)?;
     file.flush()?;
     Ok(())
 }
@@ -418,6 +450,7 @@ fn replay_wal(path: &Path) -> Result<(), StorageError> {
                         &mut last_page_used,
                         &mut last_page_record_count,
                         &frame[WAL_HEADER_LEN..],
+                        None,
                     )?;
                     current_record_count = current_record_count
                         .checked_add(1)
@@ -659,15 +692,35 @@ fn page_count_from_header(page: &[u8]) -> Result<u64, StorageError> {
     ]))
 }
 
-fn write_page_count(file: &mut File, page_count: u64) -> Result<(), StorageError> {
+fn write_page_count(
+    file: &mut File,
+    page_count: u64,
+    audit: Option<&mut PageAppendWriteAudit>,
+) -> Result<(), StorageError> {
     file.seek(SeekFrom::Start(FILE_HEADER_PAGE_COUNT_OFFSET as u64))?;
     file.write_all(&page_count.to_le_bytes())?;
+    if let Some(audit) = audit {
+        audit.page_file_writes.push(PageFileWrite {
+            offset: FILE_HEADER_PAGE_COUNT_OFFSET as u64,
+            len: std::mem::size_of::<u64>(),
+        });
+    }
     Ok(())
 }
 
-fn append_empty_data_page(file: &mut File) -> Result<(), StorageError> {
-    file.seek(SeekFrom::End(0))?;
-    file.write_all(&empty_data_page())?;
+fn append_empty_data_page(
+    file: &mut File,
+    audit: Option<&mut PageAppendWriteAudit>,
+) -> Result<(), StorageError> {
+    let offset = file.seek(SeekFrom::End(0))?;
+    let page = empty_data_page();
+    file.write_all(&page)?;
+    if let Some(audit) = audit {
+        audit.page_file_writes.push(PageFileWrite {
+            offset,
+            len: page.len(),
+        });
+    }
     Ok(())
 }
 
@@ -694,9 +747,21 @@ fn read_page(file: &mut File, page_index: u64) -> Result<Vec<u8>, StorageError> 
     Ok(page)
 }
 
-fn write_page(file: &mut File, page_index: u64, page: &[u8]) -> Result<(), StorageError> {
-    file.seek(SeekFrom::Start(page_index * PAGE_SIZE as u64))?;
+fn write_page(
+    file: &mut File,
+    page_index: u64,
+    page: &[u8],
+    audit: Option<&mut PageAppendWriteAudit>,
+) -> Result<(), StorageError> {
+    let offset = page_index * PAGE_SIZE as u64;
+    file.seek(SeekFrom::Start(offset))?;
     file.write_all(page)?;
+    if let Some(audit) = audit {
+        audit.page_file_writes.push(PageFileWrite {
+            offset,
+            len: page.len(),
+        });
+    }
     Ok(())
 }
 
