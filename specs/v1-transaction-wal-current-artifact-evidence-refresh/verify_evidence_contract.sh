@@ -91,8 +91,6 @@ reject_scheduler_identity_values() {
   fi
 }
 
-current_sha="$("$repo_root/scripts/print_git_head" 2>/dev/null || git -C "$repo_root" rev-parse HEAD)"
-
 require_file "$evidence_dir/current-repo-sha.txt"
 require_file "$evidence_dir/command-log.md"
 require_file "$evidence_dir/requirement-evidence.md"
@@ -101,8 +99,19 @@ require_file "$evidence_dir/crash-matrix-log.md"
 require_file "$feature_dir/final_review.md"
 
 require_text "$evidence_dir/current-repo-sha.txt" "command: git rev-parse HEAD"
-require_text "$evidence_dir/current-repo-sha.txt" "$current_sha"
 require_text "$evidence_dir/current-repo-sha.txt" "command: git status --short"
+evidence_sha="$(awk '
+  $0 == "command: git rev-parse HEAD" {
+    in_block = 1
+    next
+  }
+  in_block && /^stdout: / {
+    print $2
+    exit
+  }
+' "$evidence_dir/current-repo-sha.txt")"
+[[ "$evidence_sha" =~ ^[0-9a-f]{40}$ ]] || fail "$evidence_dir/current-repo-sha.txt must record a 40-character git SHA stdout for git rev-parse HEAD"
+git -C "$repo_root" cat-file -e "$evidence_sha^{commit}" || fail "$evidence_dir/current-repo-sha.txt records a SHA that is not present as a local commit: $evidence_sha"
 for command in \
   "git rev-parse HEAD" \
   "git status --short" \
@@ -118,6 +127,14 @@ for required_path in \
   "path: scripts/verify" \
   "path: scripts/verify_crash_matrix"; do
   require_text "$evidence_dir/current-repo-sha.txt" "$required_path"
+done
+for sha_bound_artifact in \
+  "$evidence_dir/command-log.md" \
+  "$evidence_dir/requirement-evidence.md" \
+  "$evidence_dir/wal-sidecar-smoke.md" \
+  "$evidence_dir/crash-matrix-log.md" \
+  "$feature_dir/final_review.md"; do
+  require_text "$sha_bound_artifact" "$evidence_sha"
 done
 
 for command in \
@@ -168,7 +185,6 @@ require_text "$evidence_dir/crash-matrix-log.md" "target/crash_matrix/crash_matr
 require_text "$feature_dir/final_review.md" "Verdict: PASS"
 require_text "$feature_dir/final_review.md" "Non-Visual Evidence: not-applicable"
 require_text "$feature_dir/final_review.md" "gate-v1-transactions-wal-recovery"
-require_text "$feature_dir/final_review.md" "$current_sha"
 
 for implementation_evidence in \
   "$evidence_dir/current-repo-sha.txt" \

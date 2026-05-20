@@ -1,6 +1,6 @@
 # WAL Sidecar Reopen Smoke
 
-Current repo SHA: `bed51c0d35f392458840870401f304a157a3b005`
+Current repo SHA: `bc45346ff9eb92e3f2585f14f6a694e10bce0918`
 
 The smoke used a fresh temporary database path. The machine-specific temporary
 parent is redacted, while the product evidence identity remains `$DB_PATH` and
